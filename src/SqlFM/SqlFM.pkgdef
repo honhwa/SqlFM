@@ -1,0 +1,26 @@
+﻿// SqlFM extension registration file
+// Registers package, menu resource, auto-load, and options page
+
+[$RootKey$\Packages\{B4AB3D7A-F5E7-485D-A68E-F9037042028C}]
+@="SqlFMPackage"
+"InprocServer32"="$WinDir$\SYSTEM32\MSCOREE.DLL"
+"Class"="SqlFM.SqlFMPackage"
+"CodeBase"="$PackageFolder$\SqlFM.dll"
+"AllowsBackgroundLoad"=dword:00000001
+
+[$RootKey$\Menus]
+"{B4AB3D7A-F5E7-485D-A68E-F9037042028C}"=", Menus.ctmenu, 1"
+
+[$RootKey$\AutoLoadPackages\{ADFC4E64-0397-11D1-9F4E-00A0C911004F}]
+"{B4AB3D7A-F5E7-485D-A68E-F9037042028C}"=dword:00000002
+
+[$RootKey$\AutoLoadPackages\{ADFC4E63-0397-11D1-9F4E-00A0C911004F}]
+"{B4AB3D7A-F5E7-485D-A68E-F9037042028C}"=dword:00000002
+
+[$RootKey$\ToolsOptionsPages\SqlFM]
+@="SqlFM"
+
+[$RootKey$\ToolsOptionsPages\SqlFM\General]
+@="General"
+"Package"="{B4AB3D7A-F5E7-485D-A68E-F9037042028C}"
+"Page"="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"

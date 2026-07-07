@@ -1,0 +1,28 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.DotSettings.user
+
+## Visual Studio
+.vs/
+
+## VSIX
+*.vsix
+.vsixmanifest.bak
+
+## Build output
+output/
+
+## WorkBuddy
+.workbuddy/
+
+## IDE
+.idea/
+*.swp
+*~
+
+## OS
+Thumbs.db
+Desktop.ini

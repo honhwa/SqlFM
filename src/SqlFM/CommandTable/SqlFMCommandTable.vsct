@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable"
+              xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- 引入标准 VS 命令和 Shell ID 定义 -->
+  <Extern href="stdidcmd.h"/>
+  <Extern href="vsshlids.h"/>
+
+  <Commands package="guidSqlFMPackage">
+
+    <!-- ==================== 菜单定义 ==================== -->
+
+    <Menus>
+      <!-- 顶级菜单 "SqlFM"，放在主菜单栏 -->
+      <Menu guid="guidSqlFMCmdSet"
+            id="TopLevelMenu"
+            priority="0x0100"
+            type="Menu">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS" />
+        <Strings>
+          <ButtonText>SqlFM</ButtonText>
+          <CommandName>SqlFM</CommandName>
+        </Strings>
+      </Menu>
+
+      <!-- 工具栏：提供快捷按钮访问（Toolbar 类型无需 Parent） -->
+      <Menu guid="guidSqlFMCmdSet"
+            id="SqlFMToolbar"
+            priority="0x0200"
+            type="Toolbar">
+        <Strings>
+          <ButtonText>SqlFM 工具栏</ButtonText>
+          <CommandName>SqlFMToolbar</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <!-- ==================== 菜单组定义 ==================== -->
+
+    <Groups>
+      <!-- 主菜单下的命令组 -->
+      <Group guid="guidSqlFMCmdSet"
+             id="MenuGroup"
+             priority="0x0100">
+        <Parent guid="guidSqlFMCmdSet" id="TopLevelMenu" />
+      </Group>
+
+      <!-- 右键上下文菜单（代码窗口 IDM_VS_CTXT_CODEWIN）中的命令组 -->
+      <Group guid="guidSqlFMCmdSet"
+             id="ContextMenuGroup"
+             priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
+
+      <!-- 工具栏命令组 -->
+      <Group guid="guidSqlFMCmdSet"
+             id="ToolbarGroup"
+             priority="0x0100">
+        <Parent guid="guidSqlFMCmdSet" id="SqlFMToolbar" />
+      </Group>
+    </Groups>
+
+    <!-- ==================== 按钮定义 ==================== -->
+
+    <Buttons>
+
+      <!-- 格式化选中 SQL -->
+      <Button guid="guidSqlFMCmdSet"
+              id="FormatSelectedCmdId"
+              priority="0x0100"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>格式化选中 SQL</ButtonText>
+          <CommandName>FormatSelected</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 格式化全部 SQL -->
+      <Button guid="guidSqlFMCmdSet"
+              id="FormatAllCmdId"
+              priority="0x0200"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>格式化全部 SQL</ButtonText>
+          <CommandName>FormatAll</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 格式化选项 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="FormatOptionsCmdId"
+              priority="0x0300"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>格式化选项</ButtonText>
+          <CommandName>FormatOptions</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 关键字大写 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="CaseUpperCmdId"
+              priority="0x0400"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>关键字大写</ButtonText>
+          <CommandName>CaseUpper</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 关键字小写 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="CaseLowerCmdId"
+              priority="0x0500"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>关键字小写</ButtonText>
+          <CommandName>CaseLower</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 插入豁免标记 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="InsertExemptionCmdId"
+              priority="0x0600"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>插入豁免标记</ButtonText>
+          <CommandName>InsertExemption</CommandName>
+        </Strings>
+      </Button>
+
+    </Buttons>
+
+  </Commands>
+
+  <!-- ==================== 快捷键绑定（顶级，与 Commands 同级）==================== -->
+
+  <KeyBindings>
+    <!-- 格式化选中 SQL：Ctrl+K, Ctrl+F -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="FormatSelectedCmdId"
+                editor="guidVSStd97" key1="K" mod1="Control" key2="F" mod2="Control" />
+    <!-- 格式化全部 SQL：Ctrl+K, Ctrl+D -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="FormatAllCmdId"
+                editor="guidVSStd97" key1="K" mod1="Control" key2="D" mod2="Control" />
+    <!-- 格式化选项：Ctrl+K, Ctrl+O -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="FormatOptionsCmdId"
+                editor="guidVSStd97" key1="K" mod1="Control" key2="O" mod2="Control" />
+    <!-- 关键字大写：Ctrl+B, Ctrl+U -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="CaseUpperCmdId"
+                editor="guidVSStd97" key1="B" mod1="Control" key2="U" mod2="Control" />
+    <!-- 关键字小写：Ctrl+B, Ctrl+L -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="CaseLowerCmdId"
+                editor="guidVSStd97" key1="B" mod1="Control" key2="L" mod2="Control" />
+    <!-- 插入豁免标记：Ctrl+D, Ctrl+I -->
+    <KeyBinding guid="guidSqlFMCmdSet" id="InsertExemptionCmdId"
+                editor="guidVSStd97" key1="D" mod1="Control" key2="I" mod2="Control" />
+  </KeyBindings>
+
+  <!-- ==================== 命令放置 ==================== -->
+  <!-- 将命令同时放置到右键上下文菜单和工具栏，实现一处定义、多处显示 -->
+
+  <CommandPlacements>
+    <!-- ContextMenuGroup：格式化选中 SQL -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatSelectedCmdId"
+                      priority="0x0100">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：格式化全部 SQL -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatAllCmdId"
+                      priority="0x0200">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：格式化选项 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatOptionsCmdId"
+                      priority="0x0300">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：关键字大写 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="CaseUpperCmdId"
+                      priority="0x0400">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：关键字小写 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="CaseLowerCmdId"
+                      priority="0x0500">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：插入豁免标记 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="InsertExemptionCmdId"
+                      priority="0x0600">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：格式化选中 SQL -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatSelectedCmdId"
+                      priority="0x0100">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：格式化全部 SQL -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatAllCmdId"
+                      priority="0x0200">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：格式化选项 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatOptionsCmdId"
+                      priority="0x0300">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <!-- ==================== 符号定义 ==================== -->
+
+  <Symbols>
+    <!-- Package GUID -->
+    <GuidSymbol name="guidSqlFMPackage"
+                value="{B4AB3D7A-F5E7-485D-A68E-F9037042028C}" />
+
+    <!-- 命令集 GUID -->
+    <GuidSymbol name="guidSqlFMCmdSet"
+                value="{E8F2A3D4-5B6C-7D8E-9F0A-1B2C3D4E5F6A}">
+
+      <!-- 命令 ID -->
+      <IDSymbol name="FormatSelectedCmdId"  value="0x0100" />
+      <IDSymbol name="FormatAllCmdId"       value="0x0101" />
+      <IDSymbol name="FormatOptionsCmdId"   value="0x0102" />
+      <IDSymbol name="CaseUpperCmdId"       value="0x0103" />
+      <IDSymbol name="CaseLowerCmdId"       value="0x0104" />
+      <IDSymbol name="InsertExemptionCmdId" value="0x0105" />
+
+      <!-- 菜单 ID -->
+      <IDSymbol name="TopLevelMenu"  value="0x1001" />
+      <IDSymbol name="SqlFMToolbar"  value="0x1002" />
+
+      <!-- 组 ID -->
+      <IDSymbol name="MenuGroup"        value="0x1050" />
+      <IDSymbol name="ContextMenuGroup" value="0x1051" />
+      <IDSymbol name="ToolbarGroup"     value="0x1052" />
+    </GuidSymbol>
+  </Symbols>
+
+</CommandTable>

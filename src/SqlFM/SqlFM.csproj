@@ -1,0 +1,115 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <!-- 启用 VSSDK BuildTools 自动导入 VS 安装目录中的 VSIX 构建 targets -->
+    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <!-- VSToolsPath 指向本机 VS 安装，用于导入 CreateVsixContainer 等 target -->
+    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
+    <RootNamespace>SqlFM</RootNamespace>
+    <AssemblyName>SqlFM</AssemblyName>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- VSIX 输出类型 -->
+    <OutputType>Library</OutputType>
+    <!-- VS 扩展相关 -->
+    <UseVSHostingProcess>false</UseVSHostingProcess>
+    <StartAction>Program</StartAction>
+    <StartProgram>$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/rootsuffix Exp</StartArguments>
+    <!-- VSIX 打包核心开关 -->
+    <GenerateVsixManifest>true</GenerateVsixManifest>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <!-- 强制只在 net472 目标下生成 VSIX，防止 BuildTools 在 net8.0-windows 下重复打包 -->
+    <VsixTargetFramework>net48</VsixTargetFramework>
+    <DeployExtension Condition="'$(Configuration)' == 'Release'">false</DeployExtension>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>true</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <!-- 禁用自动 pkgdef 生成，使用手动创建的 pkgdef（手动维护更可控） -->
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <!-- net48 SDK-style 项目开启 WPF 支持，自动引入 PresentationBuildTasks 并处理 XAML -->
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <!-- WPF 程序集引用（net48 SDK-style 项目需手动引用） -->
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- VS SDK（17.6 纯 .NET Framework，无 .NET 8 依赖） -->
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.6.36389" />
+    <!-- 保留 BuildTools 18.x 以支持 dotnet build 生成 VSIX，通过后处理 target 删除 .NET 8 DLL -->
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- VSCT 编译 -->
+    <VSCTCompile Include="CommandTable\SqlFMCommandTable.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </Content>
+    <!-- 手动包含 pkgdef 文件到 VSIX 容器 -->
+    <Content Include="SqlFM.pkgdef">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 排除可能被传递引入的 .NET 8 / Extensibility 程序集，不打包进 VSIX -->
+    <Content Remove="**\Microsoft.VisualStudio.Extensibility.*.dll" />
+    <Content Remove="**\Microsoft.VisualStudio.ProjectSystem.*.dll" />
+    <!-- 明确排除 net8.0 运行时目录 -->
+    <Content Remove="runtimes\**" />
+    <!-- 排除已知的 .NET 8+ 专属 DLL -->
+    <Content Remove="**\Microsoft.Win32.SystemEvents.dll" />
+    <Content Remove="**\System.Drawing.Common.dll" />
+    <Content Remove="**\System.Private.Windows.Core.dll" />
+    <Content Remove="**\Microsoft.VisualStudio.Linux.ConnectionManager.Store.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SqlFM.Core\SqlFM.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 在 VSIX 容器构建前，从待打包列表中移除所有引用 .NET 8 的 DLL -->
+  <Target Name="ExcludeNet8DllsFromVsix" BeforeTargets="GetVsixSourceItems">
+    <ItemGroup>
+      <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="$([System.String]::Copy('%(Filename)%(Extension)').Contains('Microsoft.VisualStudio.Extensibility'))" />
+      <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="$([System.String]::Copy('%(RelativeDir)').Contains('net8'))" />
+      <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="$([System.String]::Copy('%(RelativeDir)').Contains('browser'))" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    VSIX 后处理：从已生成的 VSIX 中删除 .NET 8 相关 DLL。
+    BuildTools 18.x 在 net8.0-windows 框架下运行 VSIX 工具链，会把 .NET 8 DLL 打入 VSIX，
+    此 Target 在构建完成后重新打包 VSIX 以删除这些 DLL。
+  -->
+  <Target Name="CleanNet8DllsFromVsix" AfterTargets="CreateVsixContainer" Condition="'$(CreateVsixContainer)' == 'true'">
+    <PropertyGroup>
+      <_VsixFile>$(OutputPath)$(AssemblyName).vsix</_VsixFile>
+      <_VsixTempDir>$(IntermediateOutputPath)vsix_clean_temp\</_VsixTempDir>
+    </PropertyGroup>
+
+    <Message Text="[SqlFM] 正在清理 VSIX 中的 .NET 8 DLL: $(_VsixFile)" Importance="High" Condition="Exists('$(_VsixFile)')" />
+
+    <!-- 使用内联 PowerShell 脚本处理 VSIX -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;&amp; { $vsix = '$(_VsixFile)'; if (-not (Test-Path $vsix)) { exit 0 }; Add-Type -AssemblyName System.IO.Compression.FileSystem; $tmpDir = '$(_VsixTempDir)'; if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }; [System.IO.Compression.ZipFile]::ExtractToDirectory($vsix, $tmpDir); $bad = @('Microsoft.VisualStudio.Extensibility.*.dll', 'Microsoft.VisualStudio.Linux.ConnectionManager.Store.dll', 'Microsoft.Win32.SystemEvents.dll', 'System.Drawing.Common.dll', 'System.Private.Windows.Core.dll'); foreach ($pat in $bad) { Get-ChildItem $tmpDir -Filter $pat -Recurse | Remove-Item -Force }; Get-ChildItem $tmpDir -Directory | Where-Object { $_.Name -eq 'runtimes' } | Remove-Item -Recurse -Force; Remove-Item $vsix -Force; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmpDir, $vsix); Remove-Item $tmpDir -Recurse -Force; Write-Host 'VSIX cleaned.' }&quot;" Condition="Exists('$(_VsixFile)')" />
+  </Target>
+</Project>

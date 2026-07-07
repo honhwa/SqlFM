@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Id="SqlFM.B4AB3D7A-F5E7-485D-A68E-F9037042028C" Version="1.0.0" Language="zh-CN" Publisher="SqlFM" />
+    <DisplayName>SqlFM - T-SQL 格式化工具</DisplayName>
+    <Description xml:space="preserve">为 SSMS 22.6 提供 T-SQL 格式化功能，支持 85+ 细粒度配置项、WPF 可视化配置窗口、豁免标记、SQL 重构等。</Description>
+    <MoreInfo>https://github.com/SqlFM</MoreInfo>
+    <Tags>SQL,T-SQL,Formatter,SSMS,SqlFM</Tags>
+  </Metadata>
+  <Installation>
+    <InstallationTarget Id="Microsoft.VisualStudio.Ssms" Version="[22.0,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,)" DisplayName="Visual Studio Core Editor" />
+  </Prerequisites>
+
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
+    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="File" Path="SqlFM.pkgdef" />
+  </Assets>
+</PackageManifest>
