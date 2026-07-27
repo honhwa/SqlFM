@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using SqlFM.Core.Configuration;
@@ -43,6 +44,14 @@ namespace SqlFM.Core.Engine
             var dml = style.Dml;
             var expr = style.Expression;
 
+            // P1-1: SELECT 列列表纵向对齐
+            if (dml.SelectListColumnAlign)
+                sql = SafeAlign(() => AlignSelectListColumns(sql), sql);
+
+            // P1-1a: BETWEEN expr1 AND expr2 保持单行
+            if (dml.KeepBetweenAndOnSameLine)
+                sql = SafeAlign(() => CompactBetweenAnd(sql), sql);
+
             // P1-2: 比较运算符纵向对齐
             if (dml.AlignCompareOperator)
                 sql = SafeAlign(() => AlignCompareOperators(sql), sql);
@@ -72,6 +81,10 @@ namespace SqlFM.Core.Engine
             // P3-10: 块注释格式化
             if (expr.BlockCommentFormat)
                 sql = SafeAlign(() => FormatBlockComments(sql), sql);
+
+            // P4-11: DECLARE 多变量纵向对齐
+            if (style.Tsql.AlignDeclareVariables)
+                sql = SafeAlign(() => AlignDeclareVariables(sql), sql);
 
             return sql;
         }
@@ -1131,6 +1144,274 @@ namespace SqlFM.Core.Engine
 
                 return sb.ToString();
             });
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // P1-1: SELECT 列列表纵向对齐
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 对 SELECT 列表中的列名进行纵向对齐，使后续列名单独一行并对齐到首列名起始列。
+        /// 示例：
+        ///   SELECT receiverdate,        SELECT receiverdate,
+        ///       receivercode,    →           receivercode,
+        ///       posno                          posno
+        /// </summary>
+        /// <param name="sql">待处理的 SQL 文本</param>
+        /// <returns>列名对齐后的 SQL 文本</returns>
+        private string AlignSelectListColumns(string sql)
+        {
+            var lines = sql.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var result = new List<string>(lines.Length);
+
+            int i = 0;
+            while (i < lines.Length)
+            {
+                var trimmed = lines[i].TrimStart();
+                if (Regex.IsMatch(trimmed, @"^SELECT\s", RegexOptions.IgnoreCase))
+                {
+                    var blockIndices = new List<int> { i };
+                    int j = i + 1;
+
+                    while (j < lines.Length)
+                    {
+                        var nextTrimmed = lines[j].TrimStart();
+                        if (nextTrimmed.Length == 0) break;
+
+                        string firstWord = GetFirstWord(nextTrimmed);
+                        if (ClauseKeywords.Contains(firstWord))
+                            break;
+
+                        blockIndices.Add(j);
+                        j++;
+                    }
+
+                    if (blockIndices.Count >= 2)
+                    {
+                        AlignSelectListBlock(lines, blockIndices);
+                    }
+
+                    for (int k = i; k < j; k++)
+                        result.Add(lines[k]);
+                    i = j;
+                }
+                else
+                {
+                    result.Add(lines[i]);
+                    i++;
+                }
+            }
+
+            return string.Join(Environment.NewLine, result);
+        }
+
+        /// <summary>
+        /// 对 SELECT 列块执行纵向对齐。
+        /// </summary>
+        /// <param name="lines">所有行数组</param>
+        /// <param name="blockIndices">SELECT 列块行索引列表</param>
+        private static void AlignSelectListBlock(string[] lines, List<int> blockIndices)
+        {
+            var firstLine = lines[blockIndices[0]];
+            var m = Regex.Match(firstLine, @"^(\s*)SELECT\s+", RegexOptions.IgnoreCase);
+            if (!m.Success) return;
+
+            // 首列名（SELECT 后的第一个 token）起始列
+            int firstItemStart = m.Length;
+            while (firstItemStart < firstLine.Length && char.IsWhiteSpace(firstLine[firstItemStart]))
+                firstItemStart++;
+
+            if (firstItemStart >= firstLine.Length) return;
+
+            for (int k = 1; k < blockIndices.Count; k++)
+            {
+                int lineIdx = blockIndices[k];
+                var line = lines[lineIdx];
+
+                // 找到当前行第一个有效 token 的起始位置（跳过前导空白和行首逗号）
+                int tokenStart = 0;
+                while (tokenStart < line.Length &&
+                       (char.IsWhiteSpace(line[tokenStart]) || line[tokenStart] == ','))
+                    tokenStart++;
+
+                if (tokenStart >= line.Length) continue;
+
+                int diff = firstItemStart - tokenStart;
+                if (diff == 0) continue;
+
+                if (diff > 0)
+                {
+                    lines[lineIdx] = line.Substring(0, tokenStart) +
+                                     new string(' ', diff) +
+                                     line.Substring(tokenStart);
+                }
+                else
+                {
+                    int spaces = 0;
+                    for (int s = tokenStart - 1; s >= 0 && line[s] == ' '; s--)
+                        spaces++;
+                    int remove = Math.Min(spaces, -diff);
+                    lines[lineIdx] = line.Substring(0, tokenStart - remove) +
+                                     line.Substring(tokenStart);
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // P1-1a: BETWEEN expr1 AND expr2 保持单行
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 将拆成两行的 BETWEEN ... AND ... 重新合并为单行。
+        /// 示例：
+        ///   AND receiverdate BETWEEN @start
+        ///       AND @end
+        ///   →
+        ///   AND receiverdate BETWEEN @start AND @end
+        /// </summary>
+        /// <param name="sql">待处理的 SQL 文本</param>
+        /// <returns>合并后的 SQL 文本</returns>
+        private string CompactBetweenAnd(string sql)
+        {
+            var lines = sql.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+            var result = new List<string>(lines.Count);
+
+            int i = 0;
+            while (i < lines.Count)
+            {
+                var line = lines[i];
+                var trimmed = line.TrimStart();
+
+                // 当前行包含 BETWEEN，且下一行单独以 AND 开头，则合并为单行
+                if (Regex.IsMatch(trimmed, @"\bBETWEEN\b", RegexOptions.IgnoreCase) &&
+                    i + 1 < lines.Count)
+                {
+                    var nextTrimmed = lines[i + 1].TrimStart();
+                    if (Regex.IsMatch(nextTrimmed, @"^AND\b", RegexOptions.IgnoreCase))
+                    {
+                        var afterAnd = nextTrimmed.Substring(3).TrimStart();
+                        result.Add(line.TrimEnd() + " AND " + afterAnd);
+                        i += 2;
+                        continue;
+                    }
+                }
+
+                result.Add(line);
+                i++;
+            }
+
+            return string.Join(Environment.NewLine, result);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // P4-11: DECLARE 多变量纵向对齐
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 对 DECLARE 语句中的多个变量声明进行纵向对齐。
+        /// 将后续变量行缩进到与首变量名相同的列，提升可读性。
+        /// 示例：
+        ///   DECLARE @timecount NUMERIC(9),           DECLARE @timecount NUMERIC(9),
+        ///       @piececount NUMERIC(9),      →              @piececount NUMERIC(9),
+        ///       @actualsalemoney NUMERIC(9, 2)              @actualsalemoney NUMERIC(9, 2)
+        /// </summary>
+        /// <param name="sql">待处理的 SQL 文本</param>
+        /// <returns>变量对齐后的 SQL 文本</returns>
+        private string AlignDeclareVariables(string sql)
+        {
+            var lines = sql.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var result = new List<string>(lines.Length);
+
+            int i = 0;
+            while (i < lines.Length)
+            {
+                var trimmed = lines[i].TrimStart();
+                if (Regex.IsMatch(trimmed, @"^DECLARE\s", RegexOptions.IgnoreCase))
+                {
+                    // 收集当前 DECLARE 块：DECLARE 行 + 后续以 @ 开头的连续行
+                    var blockIndices = new List<int> { i };
+                    int j = i + 1;
+                    while (j < lines.Length)
+                    {
+                        var nextTrimmed = lines[j].TrimStart();
+                        if (nextTrimmed.Length == 0)
+                            break;
+                        if (nextTrimmed.StartsWith("@"))
+                        {
+                            blockIndices.Add(j);
+                            j++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (blockIndices.Count >= 2)
+                    {
+                        AlignDeclareBlock(lines, blockIndices);
+                    }
+
+                    for (int k = i; k < j; k++)
+                        result.Add(lines[k]);
+                    i = j;
+                }
+                else
+                {
+                    result.Add(lines[i]);
+                    i++;
+                }
+            }
+
+            return string.Join(Environment.NewLine, result);
+        }
+
+        /// <summary>
+        /// 对一个 DECLARE 变量块执行纵向对齐。
+        /// </summary>
+        /// <param name="lines">所有行数组</param>
+        /// <param name="blockIndices">DECLARE 块行索引列表</param>
+        private static void AlignDeclareBlock(string[] lines, List<int> blockIndices)
+        {
+            // 找到首行中第一个 @ 的位置（变量名起始列）
+            int firstLineIdx = blockIndices[0];
+            int firstAtPos = lines[firstLineIdx].IndexOf('@');
+            if (firstAtPos < 0) return;
+
+            // 计算目标列：首行 @ 所在的列号
+            int targetColumn = firstAtPos;
+
+            for (int k = 1; k < blockIndices.Count; k++)
+            {
+                int lineIdx = blockIndices[k];
+                var line = lines[lineIdx];
+                int atPos = line.IndexOf('@');
+                if (atPos < 0) continue;
+
+                // 当前 @ 所在列与目标列的差值
+                int diff = targetColumn - atPos;
+                if (diff == 0) continue;
+
+                if (diff > 0)
+                {
+                    // 需要向右移动：在 @ 前补空格
+                    string beforeAt = line.Substring(0, atPos);
+                    string afterAt = line.Substring(atPos);
+                    lines[lineIdx] = beforeAt + new string(' ', diff) + afterAt;
+                }
+                else
+                {
+                    // 需要向左移动：删除 @ 前多余空格（最多删到行首非空字符）
+                    int leadingSpaces = 0;
+                    while (atPos - leadingSpaces - 1 >= 0 &&
+                           line[atPos - leadingSpaces - 1] == ' ')
+                    {
+                        leadingSpaces++;
+                    }
+                    int remove = Math.Min(leadingSpaces, -diff);
+                    lines[lineIdx] = line.Substring(0, atPos - remove) + line.Substring(atPos);
+                }
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════════

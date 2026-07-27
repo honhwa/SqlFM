@@ -1,3 +1,4 @@
+using System;
 using SqlFM.Core.Configuration;
 using SqlFM.Core.Engine;
 using SqlFM.Core.Exemption;
@@ -75,6 +76,69 @@ namespace SqlFM.Core.Tests
         {
             var presets = PresetStyleFactory.GetAllPresets();
             Assert.Equal(5, presets.Count);
+        }
+
+        [Fact]
+        public void Alignment_DeclareVariablesAligned()
+        {
+            var pipeline = new FormatterPipeline();
+            pipeline.LoadStyle(PresetStyleFactory.CreateDefault());
+
+            var sql = "DECLARE @timecount NUMERIC(9), @piececount NUMERIC(9), @actualsalemoney NUMERIC(9, 2)";
+            var result = pipeline.Format(sql);
+
+            Assert.True(result.Success);
+            var lines = result.FormattedSql.Split('\n');
+            // 找到包含 @timecount 和 @piececount 的行
+            var firstAt = -1;
+            var secondAt = -1;
+            foreach (var line in lines)
+            {
+                if (line.Contains("@timecount"))
+                    firstAt = line.IndexOf('@');
+                if (line.Contains("@piececount"))
+                    secondAt = line.IndexOf('@');
+            }
+            Assert.True(firstAt >= 0, "应包含 @timecount 行");
+            Assert.True(secondAt >= 0, "应包含 @piececount 行");
+            Assert.Equal(firstAt, secondAt); // 两个 @ 应在同一列
+        }
+
+        [Fact]
+        public void Alignment_SelectListColumnsAligned()
+        {
+            var pipeline = new FormatterPipeline();
+            pipeline.LoadStyle(PresetStyleFactory.CreateDefault());
+
+            var sql = "SELECT receiverdate, receivercode, posno FROM t";
+            var result = pipeline.Format(sql);
+
+            Assert.True(result.Success);
+            var lines = result.FormattedSql.Split('\n');
+            int firstCol = -1, secondCol = -1;
+            foreach (var line in lines)
+            {
+                if (line.Contains("receiverdate"))
+                    firstCol = line.IndexOf("receiverdate", StringComparison.OrdinalIgnoreCase);
+                if (line.Contains("receivercode"))
+                    secondCol = line.IndexOf("receivercode", StringComparison.OrdinalIgnoreCase);
+            }
+            Assert.True(firstCol > 0, "应包含 receiverdate 行");
+            Assert.True(secondCol > 0, "应包含 receivercode 行");
+            Assert.Equal(firstCol, secondCol); // 两个列名起始列相同
+        }
+
+        [Fact]
+        public void Alignment_BetweenAndCompacted()
+        {
+            var pipeline = new FormatterPipeline();
+            pipeline.LoadStyle(PresetStyleFactory.CreateDefault());
+
+            var sql = "SELECT a FROM t WHERE d BETWEEN @s AND @e";
+            var result = pipeline.Format(sql);
+
+            Assert.True(result.Success);
+            Assert.Contains("BETWEEN @s AND @e", result.FormattedSql);
         }
     }
 }

@@ -26,5 +26,14 @@ namespace SqlFM.Core.Configuration
         /// <summary>全局变量（@@变量）是否大写，默认 true</summary>
         [XmlElement]
         public bool GlobalVariableFormat { get; set; } = true;
+
+        /// <summary>
+        /// DECLARE 多变量声明时，后续变量是否与首变量纵向对齐，默认 true。
+        /// 示例：
+        ///   DECLARE @a INT,
+        ///           @b VARCHAR(10)
+        /// </summary>
+        [XmlElement]
+        public bool AlignDeclareVariables { get; set; } = true;
     }
 }

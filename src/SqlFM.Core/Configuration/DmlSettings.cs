@@ -25,6 +25,10 @@ namespace SqlFM.Core.Configuration
         [XmlElement]
         public bool AlignColumnAlias { get; set; } = false;
 
+        /// <summary>是否将 SELECT 列列表的后续列名对齐到首列名起始列，默认 true</summary>
+        [XmlElement]
+        public bool SelectListColumnAlign { get; set; } = true;
+
         /// <summary>是否在超过行宽时对长函数调用换行，默认 true</summary>
         [XmlElement]
         public bool WrapLongFunction { get; set; } = true;
@@ -72,6 +76,10 @@ namespace SqlFM.Core.Configuration
         /// <summary>嵌套括号内的条件是否额外缩进，默认 true</summary>
         [XmlElement]
         public bool NestedParenthesisIndent { get; set; } = true;
+
+        /// <summary>是否将 BETWEEN expr1 AND expr2 的 AND 部分保持在同一行，默认 true</summary>
+        [XmlElement]
+        public bool KeepBetweenAndOnSameLine { get; set; } = true;
 
         // ── GROUP BY / HAVING / ORDER BY ────────────────────────────────────────
 
