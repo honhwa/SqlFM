@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>SqlFMSetup</AssemblyName>
+    <RootNamespace>SqlFM.Setup</RootNamespace>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <ProductVersion>1.0.0</ProductVersion>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <UseWindowsForms>false</UseWindowsForms>
+    <OutputPath>..\output\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 内嵌 Release 构建出的 VSIX，使安装包为单一可执行文件 -->
+    <EmbeddedResource Include="..\src\SqlFM\bin\Release\net48\SqlFM.vsix">
+      <LogicalName>SqlFM.vsix</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 用于降级安装时把 VSIX 解压到用户级扩展目录 -->
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+</Project>

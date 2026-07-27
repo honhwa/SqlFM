@@ -14,6 +14,7 @@ obj/
 
 ## Build output
 output/
+temp/
 
 ## WorkBuddy
 .workbuddy/

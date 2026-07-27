@@ -1,74 +1,60 @@
-# SqlFM 安装包构建说明
+# SqlFM 安装包说明
 
-## 概述
+## 产物
 
-本目录包含将 SqlFM VSIX 打包为 Windows 安装程序（.exe）的脚本。
+| 文件 | 说明 |
+|------|------|
+| `output/SqlFMSetup.exe` | **主安装包**（自包含单文件）。双击即装，在 Windows 设置 → 应用 中可一键卸载。 |
+| `output/SqlFMSetup_vX.X.X.exe` | （可选）Inno Setup 生成的安装包，需本机安装 Inno Setup 6/7 才会产出。 |
 
-生成的安装包具备：
-- 双击即可在目标机器安装（前提：已安装 SSMS 22）
-- 在 Windows **设置 → 应用** 中可见，名称为"SqlFM - T-SQL 格式化工具"
-- 可通过系统的"卸载"功能一键卸载
+## 方案选型说明
+
+原先的 `SqlFMSetup.iss` 依赖 Inno Setup 编译器，而本机构建环境未安装且无法联网下载。
+因此改用一个**零依赖的自包含安装程序** `SqlFMSetup.exe`（C# / .NET Framework 4.8 编写），
+将 `SqlFM.vsix` 作为资源内嵌，单文件即可分发。
+
+## 安装包行为
+
+### 安装（双击 `SqlFMSetup.exe`）
+1. 从自身资源中提取内嵌的 `SqlFM.vsix` 到临时目录；
+2. 在 `C:\Program Files\Microsoft SQL Server Management Studio 22\...` 等路径中查找 `VSIXInstaller.exe`；
+3. 调用 `VSIXInstaller.exe /quiet SqlFM.vsix` 静默安装扩展到 SSMS 22；
+4. 将自身持久化到 `%LOCALAPPDATA%\Programs\SqlFM\SqlFMSetup.exe`；
+5. 在注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\SqlFM` 写入卸载项，
+   使本程序出现在 **Windows 设置 → 应用** 列表中。
+
+### 卸载（设置 → 应用 → SqlFM - T-SQL 格式化工具 → 卸载）
+1. 调用 `VSIXInstaller.exe /quiet /uninstall:SqlFM.B4AB3D7A-F5E7-485D-A68E-F9037042028C` 移除扩展；
+2. 删除上述注册表卸载项（从应用列表中消失）；
+3. 清理持久化目录（运行时自身文件预约重启后删除）。
+
+### 命令行
+```
+SqlFMSetup.exe               交互式安装
+SqlFMSetup.exe /quiet        静默安装
+SqlFMSetup.exe /uninstall /quiet   静默卸载（系统“应用”的卸载按钮即以此方式调用）
+```
 
 ## 前置条件
+- 目标机器已安装 **SQL Server Management Studio 22**（安装包会检测 `VSIXInstaller.exe`，缺失则提示）；
+- 安装到用户目录，**无需管理员权限**；
+- 安装后需**重启 SSMS 22** 使扩展生效。
 
-| 工具 | 说明 |
-|------|------|
-| .NET SDK | 构建 net48 项目（已配置 MSBuild）|
-| Inno Setup 6 | 免费安装包制作工具，[下载地址](https://jrsoftware.org/isdl.php) |
-| SSMS 22 | 仅目标机器需要安装，构建机器不需要 |
-
-## 构建步骤
-
-### 方式一：自动脚本（推荐）
+## 构建（打包）
 
 ```powershell
-# 在项目根目录或 installer\ 目录下执行
-cd D:\AIGC\SqlFM\installer
-powershell -ExecutionPolicy Bypass -File build-installer.ps1
+# 在项目根目录执行，自动完成：主方案 Release 构建 → 安装程序构建 → 清理冗余文件
+powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 ```
 
-脚本会自动完成：
-1. 执行 `dotnet build --configuration Release`
-2. 验证 VSIX 文件是否生成
-3. 查找 Inno Setup 编译器
-4. 编译安装包到 `..\output\SqlFMSetup_v1.0.0.exe`
+脚本会：
+1. `dotnet build SqlFM.sln --configuration Release`（产出 `SqlFM.vsix`）；
+2. `dotnet build setup\SqlFM.Setup.csproj --configuration Release`（内嵌 VSIX，产出 `output\SqlFMSetup.exe`）；
+3. 删除 `SqlFMSetup.pdb` / `.config`，保留单一 exe；
+4. 若检测到 Inno Setup，额外生成 `SqlFMSetup_vX.X.X.exe`。
 
-### 方式二：手动编译
-
-1. 先构建项目：
-   ```powershell
-   dotnet build D:\AIGC\SqlFM\SqlFM.sln --configuration Release
-   ```
-
-2. 打开 Inno Setup GUI，加载脚本：
-   ```
-   D:\AIGC\SqlFM\installer\SqlFMSetup.iss
-   ```
-   点击 **Build → Compile** 即可。
-
-## 安装包行为说明
-
-### 安装时
-1. Inno Setup 将 `SqlFM.vsix` 释放到临时目录
-2. 调用 SSMS 自带的 `VSIXInstaller.exe /quiet` 完成扩展安装
-3. SSMS 扩展文件安装到：`%LOCALAPPDATA%\Microsoft\SSMS\22.0_*\Extensions\`
-4. 在 Windows 程序列表注册卸载信息（`%LOCALAPPDATA%\Programs\SqlFM`）
-
-### 卸载时
-1. 从 Windows 设置 → 应用 中点击卸载
-2. 调用 `VSIXInstaller.exe /quiet /uninstall:SqlFM.B4AB3D7A-F5E7-485D-A68E-F9037042028C`
-3. 清理注册信息
-
-## 输出文件
-
-```
-output\
-└── SqlFMSetup_v1.0.0.exe    ← 分发给用户的安装包
-```
-
-## 注意事项
-
-- 目标机器必须已安装 **SSMS 22**，安装包会检测 `VSIXInstaller.exe` 是否存在
-- 安装过程不需要管理员权限（安装到用户目录）
-- 安装完成后需要**重启 SSMS** 才能看到扩展
-- 更新版本时，修改 `.iss` 文件中的 `MyAppVersion` 值即可
+## 关键文件
+- `setup/SqlFM.Setup.csproj` — 安装程序项目（net48，内嵌 VSIX）
+- `setup/Program.cs` — 安装/卸载逻辑（提取资源、调用 VSIXInstaller、注册表卸载项）
+- `installer/build-installer.ps1` — 一键打包脚本
+- `installer/SqlFMSetup.iss` — （可选）Inno Setup 脚本，保留备用
