@@ -29,7 +29,7 @@
             priority="0x0200"
             type="Toolbar">
         <Strings>
-          <ButtonText>SqlFM 工具栏</ButtonText>
+          <ButtonText>SqlFM 工具</ButtonText>
           <CommandName>SqlFMToolbar</CommandName>
         </Strings>
       </Menu>
@@ -72,7 +72,7 @@
         <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>格式化选中 SQL</ButtonText>
+          <ButtonText>格式化选中</ButtonText>
           <CommandName>FormatSelected</CommandName>
         </Strings>
       </Button>
@@ -85,7 +85,7 @@
         <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>格式化全部 SQL</ButtonText>
+          <ButtonText>格式化全部</ButtonText>
           <CommandName>FormatAll</CommandName>
         </Strings>
       </Button>
@@ -97,7 +97,7 @@
               type="Button">
         <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
         <Strings>
-          <ButtonText>格式化选项</ButtonText>
+          <ButtonText>格式选项</ButtonText>
           <CommandName>FormatOptions</CommandName>
         </Strings>
       </Button>
@@ -133,7 +133,7 @@
               type="Button">
         <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
         <Strings>
-          <ButtonText>插入豁免标记</ButtonText>
+          <ButtonText>插入豁免</ButtonText>
           <CommandName>InsertExemption</CommandName>
         </Strings>
       </Button>

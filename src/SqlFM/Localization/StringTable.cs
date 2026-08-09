@@ -141,13 +141,13 @@ namespace SqlFM.Localization
             ["BtnApply"] = "应用",
 
             // ── 命令 / 菜单 ──
-            ["CmdFormatSelected"] = "格式化选中 SQL",
-            ["CmdFormatAll"] = "格式化全部 SQL",
-            ["CmdFormatOptions"] = "格式化选项",
+            ["CmdFormatSelected"] = "格式化选中",
+            ["CmdFormatAll"] = "格式化全部",
+            ["CmdFormatOptions"] = "格式选项",
             ["CmdCaseUpper"] = "关键字大写",
             ["CmdCaseLower"] = "关键字小写",
-            ["CmdInsertExemption"] = "插入豁免标记",
-            ["MenuToolBar"] = "SqlFM 工具栏",
+            ["CmdInsertExemption"] = "插入豁免",
+            ["MenuToolBar"] = "SqlFM 工具",
 
             // ── 消息框 ──
             ["MsgTitle"] = "SqlFM",
