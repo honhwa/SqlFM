@@ -3,6 +3,7 @@ using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
 using SqlFM.Editor;
 using SqlFM.Services;
+using SqlFM.Localization;
 
 namespace SqlFM.Commands
 {
@@ -58,7 +59,7 @@ namespace SqlFM.Commands
                 var menuCommandId = new CommandID(CommandSet, CommandId);
 
                 // 创建菜单命令，绑定执行回调
-                var menuItem = new MenuCommand(Execute, menuCommandId);
+                var menuItem = CommandLocalizer.Create(menuCommandId, Execute, "CmdFormatSelected");
 
                 // 注册命令
                 commandService.AddCommand(menuItem);

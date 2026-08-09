@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
 using SqlFM.Editor;
+using SqlFM.Localization;
 
 namespace SqlFM.Commands
 {
@@ -53,7 +54,7 @@ namespace SqlFM.Commands
             if (commandService != null)
             {
                 var menuCommandId = new CommandID(CommandSet, CommandId);
-                var menuItem = new MenuCommand(Execute, menuCommandId);
+                var menuItem = CommandLocalizer.Create(menuCommandId, Execute, "CmdInsertExemption");
                 commandService.AddCommand(menuItem);
             }
 

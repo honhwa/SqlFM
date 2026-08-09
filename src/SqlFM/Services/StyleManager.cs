@@ -6,6 +6,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using SqlFM.Core.Configuration;
 using SqlFM.Core.PresetStyles;
+using SqlFM.Localization;
 
 namespace SqlFM.Services
 {
@@ -107,8 +108,50 @@ namespace SqlFM.Services
         /// <param name="name">要设为默认的样式名称</param>
         public static void SetDefaultStyleName(string name)
         {
+            var settings = LoadSettings();
+            settings.DefaultStyleName = name;
+            SaveSettings(settings);
+        }
+
+        /// <summary>读取界面语言偏好（默认 auto / 跟随系统）。</summary>
+        public static UiLanguage LoadInterfaceLanguage()
+        {
+            return Localizer.ParseSetting(LoadSettings().InterfaceLanguage);
+        }
+
+        /// <summary>保存界面语言偏好到 settings.xml（保留其他设置）。</summary>
+        public static void SaveInterfaceLanguage(UiLanguage language)
+        {
+            var settings = LoadSettings();
+            settings.InterfaceLanguage = Localizer.ToSettingString(language);
+            SaveSettings(settings);
+        }
+
+        // ── 内部工具 ──────────────────────────────────────────────────────────
+
+        private static AppSettings LoadSettings()
+        {
+            if (!File.Exists(SettingsFile))
+                return new AppSettings();
+
+            try
+            {
+                var serializer = new XmlSerializer(typeof(AppSettings));
+                using (var reader = new StreamReader(SettingsFile))
+                {
+                    var settings = (AppSettings?)serializer.Deserialize(reader);
+                    return settings ?? new AppSettings();
+                }
+            }
+            catch
+            {
+                return new AppSettings();
+            }
+        }
+
+        private static void SaveSettings(AppSettings settings)
+        {
             EnsureDirectories();
-            var settings = new AppSettings { DefaultStyleName = name };
             var serializer = new XmlSerializer(typeof(AppSettings));
             var xmlSettings = new XmlWriterSettings { Indent = true };
             using (var writer = XmlWriter.Create(SettingsFile, xmlSettings))
@@ -117,26 +160,9 @@ namespace SqlFM.Services
             }
         }
 
-        // ── 内部工具 ──────────────────────────────────────────────────────────
-
         private static string LoadDefaultStyleName()
         {
-            if (!File.Exists(SettingsFile))
-                return "Default";
-
-            try
-            {
-                var serializer = new XmlSerializer(typeof(AppSettings));
-                using (var reader = new StreamReader(SettingsFile))
-                {
-                    var settings = (AppSettings?)serializer.Deserialize(reader);
-                    return settings?.DefaultStyleName ?? "Default";
-                }
-            }
-            catch
-            {
-                return "Default";
-            }
+            return LoadSettings().DefaultStyleName;
         }
 
         private static string GetStyleFilePath(string styleName)
@@ -161,5 +187,9 @@ namespace SqlFM.Services
         /// <summary>默认样式名称，序列化到 settings.xml，启动时读取</summary>
         [XmlElement]
         public string DefaultStyleName { get; set; } = "Default";
+
+        /// <summary>界面语言偏好（zh-Cn / en / auto），序列化到 settings.xml</summary>
+        [XmlElement]
+        public string InterfaceLanguage { get; set; } = "auto";
     }
 }

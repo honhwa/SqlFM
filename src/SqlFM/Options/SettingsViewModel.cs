@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using SqlFM.Core.Configuration;
 using SqlFM.Core.Engine;
 using SqlFM.Core.PresetStyles;
+using SqlFM.Localization;
 using SqlFM.Services;
 
 namespace SqlFM.Options
@@ -143,7 +144,17 @@ namespace SqlFM.Options
         {
             get
             {
-                var all = new[] { "全局通用", "DML语句", "CTE", "CASE WHEN", "流程控制", "DDL", "表达式", "特殊T-SQL" };
+                var all = new[]
+                {
+                    Localizer.Get("TabGeneral"),
+                    Localizer.Get("TabDml"),
+                    Localizer.Get("TabCte"),
+                    Localizer.Get("TabCase"),
+                    Localizer.Get("TabFlow"),
+                    Localizer.Get("TabDdl"),
+                    Localizer.Get("TabExpression"),
+                    Localizer.Get("TabSpecial")
+                };
                 if (string.IsNullOrWhiteSpace(_searchText))
                     return all;
                 return all.Where(t => t.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) >= 0);
@@ -214,18 +225,18 @@ namespace SqlFM.Options
             }
             catch (Exception ex)
             {
-                PreviewSql = $"-- 预览失败: {ex.Message}";
+                PreviewSql = string.Format(Localizer.Get("PreviewFail"), ex.Message);
             }
         }
 
         /// <summary>新建样式：弹出输入框，以 Default 为基础创建并保存。</summary>
         private void OnNewStyle()
         {
-            var name = PromptInput("新增样式", "请输入新样式名称：", "MyStyle");
+            var name = PromptInput(Localizer.Get("InputNewTitle"), Localizer.Get("InputNewPrompt"), "MyStyle");
             if (string.IsNullOrWhiteSpace(name)) return;
             if (_allStyles.Any(s => s.Name == name))
             {
-                MessageBox.Show($"样式名称 '{name}' 已存在。", "SqlFM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Format(Localizer.Get("MsgStyleExists"), name!), Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -243,11 +254,11 @@ namespace SqlFM.Options
         /// <summary>复制当前样式：克隆后重命名并保存。</summary>
         private void OnCopyStyle()
         {
-            var name = PromptInput("复制样式", "请输入新样式名称：", _selectedStyleName + "_Copy");
+            var name = PromptInput(Localizer.Get("InputCopyTitle"), Localizer.Get("InputCopyPrompt"), _selectedStyleName + "_Copy");
             if (string.IsNullOrWhiteSpace(name)) return;
             if (_allStyles.Any(s => s.Name == name))
             {
-                MessageBox.Show($"样式名称 '{name}' 已存在。", "SqlFM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Format(Localizer.Get("MsgStyleExists"), name!), Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -267,16 +278,16 @@ namespace SqlFM.Options
         {
             if (IsCurrentStyleSystemPreset)
             {
-                MessageBox.Show("系统预设样式不可重命名。", "SqlFM", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Localizer.Get("MsgNoRename"), Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var oldName = _currentStyle.Name;
-            var name = PromptInput("重命名样式", "请输入新名称：", oldName);
+            var name = PromptInput(Localizer.Get("InputRenameTitle"), Localizer.Get("InputRenamePrompt"), oldName);
             if (string.IsNullOrWhiteSpace(name) || name == oldName) return;
             if (_allStyles.Any(s => s.Name == name))
             {
-                MessageBox.Show($"样式名称 '{name}' 已存在。", "SqlFM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Format(Localizer.Get("MsgStyleExists"), name!), Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -302,13 +313,13 @@ namespace SqlFM.Options
         {
             if (IsCurrentStyleSystemPreset)
             {
-                MessageBox.Show("系统预设样式不可删除。", "SqlFM", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Localizer.Get("MsgNoDelete"), Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var confirm = MessageBox.Show(
-                $"确定要删除样式 '{_currentStyle.Name}' 吗？",
-                "SqlFM",
+                string.Format(Localizer.Get("MsgConfirmDelete"), _currentStyle.Name),
+                Localizer.Get("MsgTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
@@ -327,8 +338,8 @@ namespace SqlFM.Options
         private void OnSetDefault()
         {
             StyleManager.SetDefaultStyleName(_currentStyle.Name);
-            MessageBox.Show($"已将 '{_currentStyle.Name}' 设置为默认样式。",
-                "SqlFM", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(string.Format(Localizer.Get("MsgSetDefault"), _currentStyle.Name),
+                Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>从 .sqlstyle 文件导入样式，重名时自动追加 _Imported 后缀。</summary>
@@ -336,8 +347,8 @@ namespace SqlFM.Options
         {
             var dlg = new OpenFileDialog
             {
-                Title = "导入样式文件",
-                Filter = "SQL样式文件 (*.sqlstyle)|*.sqlstyle|所有文件 (*.*)|*.*",
+                Title = Localizer.Get("DlgImportTitle"),
+                Filter = Localizer.Get("FileFilterSqlStyle") + "|" + Localizer.Get("FileFilterAll"),
                 DefaultExt = ".sqlstyle"
             };
             if (dlg.ShowDialog() != true) return;
@@ -356,12 +367,12 @@ namespace SqlFM.Options
                 StyleNames.Add(style.Name);
                 SelectedStyleName = style.Name;
 
-                MessageBox.Show($"样式 '{style.Name}' 导入成功。",
-                    "SqlFM", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(string.Format(Localizer.Get("MsgImportOk"), style.Name),
+                    Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"导入失败：{ex.Message}", "SqlFM",
+                MessageBox.Show(string.Format(Localizer.Get("MsgImportFail"), ex.Message), Localizer.Get("MsgTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -371,8 +382,8 @@ namespace SqlFM.Options
         {
             var dlg = new SaveFileDialog
             {
-                Title = "导出样式文件",
-                Filter = "SQL样式文件 (*.sqlstyle)|*.sqlstyle",
+                Title = Localizer.Get("DlgExportTitle"),
+                Filter = Localizer.Get("FileFilterSqlStyle"),
                 DefaultExt = ".sqlstyle",
                 FileName = _currentStyle.Name
             };
@@ -381,12 +392,12 @@ namespace SqlFM.Options
             try
             {
                 StyleSerializer.SaveToFile(_currentStyle, dlg.FileName);
-                MessageBox.Show($"样式已导出至：{dlg.FileName}",
-                    "SqlFM", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(string.Format(Localizer.Get("MsgExportOk"), dlg.FileName),
+                    Localizer.Get("MsgTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"导出失败：{ex.Message}", "SqlFM",
+                MessageBox.Show(string.Format(Localizer.Get("MsgExportFail"), ex.Message), Localizer.Get("MsgTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -451,8 +462,8 @@ namespace SqlFM.Options
                 Orientation = System.Windows.Controls.Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
-            var ok = new System.Windows.Controls.Button { Content = "确定", Width = 80, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
-            var cancel = new System.Windows.Controls.Button { Content = "取消", Width = 80, IsCancel = true };
+            var ok = new System.Windows.Controls.Button { Content = Localizer.Get("InputOk"), Width = 80, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new System.Windows.Controls.Button { Content = Localizer.Get("InputCancel"), Width = 80, IsCancel = true };
 
             string? result = null;
             ok.Click += (_, __) => { result = txt.Text; win.Close(); };

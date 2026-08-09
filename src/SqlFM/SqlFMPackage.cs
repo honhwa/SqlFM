@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using SqlFM.Commands;
+using SqlFM.Localization;
 using SqlFM.Options;
 using SqlFM.Services;
 using System;
@@ -63,6 +64,16 @@ namespace SqlFM
         {
             // 切换到 UI 线程，命令注册必须在 UI 线程上执行
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+            // 应用界面语言偏好（中文 / 英文 / 跟随系统），必须在注册菜单/命令前设置
+            try
+            {
+                Localizer.Instance.Language = StyleManager.LoadInterfaceLanguage();
+            }
+            catch
+            {
+                // 读取失败时回退到默认（跟随系统）
+            }
 
             // 注册格式化选中 SQL 命令
             await FormatSelectedCommand.InitializeAsync(this);
@@ -326,7 +337,7 @@ namespace SqlFM
             _formatSelectedButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition, true);
-            _formatSelectedButton.Caption = "格式化选中 SQL";
+            _formatSelectedButton.Caption = Localizer.Get("CmdFormatSelected");
             _formatSelectedButton.BeginGroup = true;
             _formatSelectedButton.Click += FormatSelectedButton_Click;
 
@@ -334,28 +345,28 @@ namespace SqlFM
             _formatAllButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 1, true);
-            _formatAllButton.Caption = "格式化全部 SQL";
+            _formatAllButton.Caption = Localizer.Get("CmdFormatAll");
             _formatAllButton.Click += FormatAllButton_Click;
 
             // 添加 "关键字大写"
             _caseUpperButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 2, true);
-            _caseUpperButton.Caption = "关键字大写";
+            _caseUpperButton.Caption = Localizer.Get("CmdCaseUpper");
             _caseUpperButton.Click += CaseUpperButton_Click;
 
             // 添加 "关键字小写"
             _caseLowerButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 3, true);
-            _caseLowerButton.Caption = "关键字小写";
+            _caseLowerButton.Caption = Localizer.Get("CmdCaseLower");
             _caseLowerButton.Click += CaseLowerButton_Click;
 
             // 添加 "插入豁免标记"
             _insertExemptionButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 4, true);
-            _insertExemptionButton.Caption = "插入豁免标记";
+            _insertExemptionButton.Caption = Localizer.Get("CmdInsertExemption");
             _insertExemptionButton.Click += InsertExemptionButton_Click;
         }
 
