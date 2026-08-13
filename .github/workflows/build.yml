@@ -1,0 +1,53 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # VS2022 自带的 MSBuild 才能正确打包 VSIX（VSSDK targets）
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v1
+
+      - name: Restore NuGet packages
+        run: nuget restore SqlFM.sln
+
+      # 构建全部 5 个项目（VSIX / Core / Cli / 两个测试），产出 SqlFM.vsix
+      - name: Build solution (Release)
+        run: msbuild SqlFM.sln /p:Configuration=Release '/p:Platform="Any CPU"' /m
+
+      # 安装包项目不在 sln 内，单独构建；内嵌上一步生成的 VSIX
+      - name: Build installer (embeds VSIX)
+        run: msbuild setup/SqlFM.Setup.csproj /p:Configuration=Release '/p:Platform="Any CPU"'
+
+      # 核心层单元测试（仅依赖 SqlFM.Core，CI 可直接运行）
+      - name: Run Core unit tests
+        run: dotnet test tests/SqlFM.Core.Tests/SqlFM.Core.Tests.csproj -c Release --verbosity normal
+
+      - name: Upload VSIX artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SqlFM-vsix
+          path: src/SqlFM/bin/Release/net48/SqlFM.vsix
+          if-no-files-found: warn
+
+      - name: Upload installer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SqlFM-setup
+          path: output/SqlFMSetup.exe
+          if-no-files-found: warn

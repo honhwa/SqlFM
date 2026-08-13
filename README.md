@@ -1,3 +1,5 @@
+[![Build & Test](https://github.com/markwwl/SqlFM/actions/workflows/build.yml/badge.svg)](https://github.com/markwwl/SqlFM/actions/workflows/build.yml)
+
 # SqlFM
 
 > 一款专为 SQL Server Management Studio 22.6 打造的 T-SQL 格式化扩展——直接在编辑器里把乱糟糟的 SQL 整干净。
