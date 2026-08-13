@@ -26,14 +26,19 @@
             <Setter Property="Margin" Value="0,4,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <!-- 分组小标题 -->
+        <Style x:Key="SubHeader" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,10,0,6"/>
+        </Style>
         <!-- 枚举下拉本地化显示名转换器 -->
         <loc:EnumLocalizedConverter x:Key="EnumLocalizer"/>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- 工具栏：样式管理 + 搜索 + 语言 -->
-            <RowDefinition Height="*"/>     <!-- 主内容：Tab + 配置项 -->
+            <RowDefinition Height="Auto"/>  <!-- 工具栏：样式管理 + 语言 + 导入/导出 -->
+            <RowDefinition Height="*"/>     <!-- 主内容：核心开关 + 高级折叠 -->
             <RowDefinition Height="180"/>   <!-- SQL 预览 -->
             <RowDefinition Height="Auto"/>  <!-- 底部按钮 -->
         </Grid.RowDefinitions>
@@ -61,7 +66,7 @@
                     <Button Content="{loc:Tr Key=BtnSetDefault}" Width="64" Command="{Binding SetDefaultCommand}"/>
                 </StackPanel>
 
-                <!-- 搜索 + 语言 + 导入/导出 -->
+                <!-- 语言 + 导入/导出 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <TextBlock Text="{loc:Tr Key=LangLabel}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <ComboBox x:Name="LanguageCombo" Width="100" Margin="0,0,10,0"
@@ -70,10 +75,6 @@
                         <ComboBoxItem Content="{loc:Tr Key=LangEn}" Tag="En"/>
                         <ComboBoxItem Content="{loc:Tr Key=LangAuto}" Tag="Auto"/>
                     </ComboBox>
-                    <TextBox Width="140" Margin="0,0,6,0"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="{loc:Tr Key=SearchTooltip}"/>
-                    <TextBlock Text="🔍" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <Button Content="{loc:Tr Key=BtnImport}" Width="48" Margin="0,0,3,0" Command="{Binding ImportCommand}"/>
                     <Button Content="{loc:Tr Key=BtnExport}" Width="48" Command="{Binding ExportCommand}"/>
                 </StackPanel>
@@ -81,14 +82,71 @@
         </Border>
 
         <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- 行2：Tab 导航 + 配置项 -->
+        <!-- 行2：核心开关（常驻） + 高级选项（折叠） -->
         <!-- ═══════════════════════════════════════════════════════════ -->
-        <TabControl Grid.Row="1" Margin="4,4,4,0" x:Name="MainTabControl">
+        <ScrollViewer Grid.Row="1" Margin="4,4,4,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12,8">
 
-            <!-- ─── Tab1：全局通用 ─── -->
-            <TabItem Header="{loc:Tr Key=TabGeneral}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                <!-- ─── 核心常用设置（常驻，覆盖 90% 场景） ─── -->
+                <TextBlock Text="{loc:Tr Key=GrpCore}" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Padding="10,4" Background="#FAFAFA">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource RowPanel}">
+                            <TextBlock Text="{loc:Tr Key=LblIndentSize}" Style="{StaticResource LabelStyle}"/>
+                            <TextBox Width="60" Text="{Binding Global.IndentSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     TextChanged="Setting_Changed"/>
+                        </StackPanel>
+                        <StackPanel Style="{StaticResource RowPanel}">
+                            <TextBlock Text="{loc:Tr Key=LblMaxLineWidth}" Style="{StaticResource LabelStyle}"/>
+                            <TextBox Width="60" Text="{Binding Global.MaxLineWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     TextChanged="Setting_Changed"/>
+                        </StackPanel>
+                        <StackPanel Style="{StaticResource RowPanel}">
+                            <TextBlock Text="{loc:Tr Key=LblSqlKeyword}" Style="{StaticResource LabelStyle}"/>
+                            <ComboBox Width="120" ItemsSource="{Binding KeywordCases}"
+                                      SelectedItem="{Binding Global.KeywordCase, Mode=TwoWay}"
+                                      SelectionChanged="Setting_Changed">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Style="{StaticResource RowPanel}">
+                            <TextBlock Text="{loc:Tr Key=LblComma}" Style="{StaticResource LabelStyle}"/>
+                            <ComboBox Width="120" ItemsSource="{Binding CommaPositions}"
+                                      SelectedItem="{Binding Dml.CommaPosition, Mode=TwoWay}"
+                                      SelectionChanged="Setting_Changed">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Style="{StaticResource RowPanel}">
+                            <TextBlock Text="{loc:Tr Key=LblBracket}" Style="{StaticResource LabelStyle}"/>
+                            <ComboBox Width="120" ItemsSource="{Binding BracketModes}"
+                                      SelectedItem="{Binding Global.SquareBracketMode, Mode=TwoWay}"
+                                      SelectionChanged="Setting_Changed">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <CheckBox Content="{loc:Tr Key=ChkTrimTrailing}" IsChecked="{Binding Global.TrimTrailingSpaces, Mode=TwoWay}"
+                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
+                        <CheckBox Content="{loc:Tr Key=ChkRemoveBlank}" IsChecked="{Binding Global.RemoveExtraBlankLines, Mode=TwoWay}"
+                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
+                        <CheckBox Content="{loc:Tr Key=ChkJoinNewLine}" IsChecked="{Binding Dml.JoinKeywordNewLine, Mode=TwoWay}"
+                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ─── 高级选项（默认折叠，收纳其余 60+ 项，不删任何功能） ─── -->
+                <Expander Grid.Row="0" Margin="0,14,0,0" IsExpanded="False"
+                          Header="{loc:Tr Key=ExpAdvTitle}">
+                    <StackPanel Margin="4,8,4,4">
+
+                        <!-- 全局通用（其余项） -->
+                        <TextBlock Text="{loc:Tr Key=TabGeneral}" Style="{StaticResource SubHeader}"/>
                         <TextBlock Text="{loc:Tr Key=GrpIndentSpaces}" FontWeight="Bold" Margin="0,0,0,6"/>
                         <StackPanel Style="{StaticResource RowPanel}">
                             <TextBlock Text="{loc:Tr Key=LblIndentType}" Style="{StaticResource LabelStyle}"/>
@@ -100,25 +158,9 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                         </StackPanel>
-                        <StackPanel Style="{StaticResource RowPanel}">
-                            <TextBlock Text="{loc:Tr Key=LblIndentSize}" Style="{StaticResource LabelStyle}"/>
-                            <TextBox Width="60" Text="{Binding Global.IndentSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     TextChanged="Setting_Changed"/>
-                        </StackPanel>
-                        <StackPanel Style="{StaticResource RowPanel}">
-                            <TextBlock Text="{loc:Tr Key=LblMaxLineWidth}" Style="{StaticResource LabelStyle}"/>
-                            <TextBox Width="60" Text="{Binding Global.MaxLineWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     TextChanged="Setting_Changed"/>
-                        </StackPanel>
-                        <CheckBox Content="{loc:Tr Key=ChkTrimTrailing}" IsChecked="{Binding Global.TrimTrailingSpaces, Mode=TwoWay}"
-                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkMergeSpaces}" IsChecked="{Binding Global.MergeMultipleSpaces, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                        <CheckBox Content="{loc:Tr Key=ChkRemoveBlank}" IsChecked="{Binding Global.RemoveExtraBlankLines, Mode=TwoWay}"
-                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpBlankLines}" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <TextBlock Text="{loc:Tr Key=GrpBlankLines}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <StackPanel Style="{StaticResource RowPanel}">
                             <TextBlock Text="{loc:Tr Key=LblStmtBlank}" Style="{StaticResource LabelStyle}"/>
                             <TextBox Width="60" Text="{Binding Global.StatementBlankLines, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -134,19 +176,7 @@
                             <TextBox Width="60" Text="{Binding Global.GoAfterBlankLines, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      TextChanged="Setting_Changed"/>
                         </StackPanel>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpKeywordCase}" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <StackPanel Style="{StaticResource RowPanel}">
-                            <TextBlock Text="{loc:Tr Key=LblSqlKeyword}" Style="{StaticResource LabelStyle}"/>
-                            <ComboBox Width="120" ItemsSource="{Binding KeywordCases}"
-                                      SelectedItem="{Binding Global.KeywordCase, Mode=TwoWay}"
-                                      SelectionChanged="Setting_Changed">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
+                        <TextBlock Text="{loc:Tr Key=GrpKeywordCase}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <StackPanel Style="{StaticResource RowPanel}">
                             <TextBlock Text="{loc:Tr Key=LblFunction}" Style="{StaticResource LabelStyle}"/>
                             <ComboBox Width="120" ItemsSource="{Binding KeywordCases}"
@@ -187,19 +217,7 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                         </StackPanel>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpBracketSemicolon}" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <StackPanel Style="{StaticResource RowPanel}">
-                            <TextBlock Text="{loc:Tr Key=LblBracket}" Style="{StaticResource LabelStyle}"/>
-                            <ComboBox Width="120" ItemsSource="{Binding BracketModes}"
-                                      SelectedItem="{Binding Global.SquareBracketMode, Mode=TwoWay}"
-                                      SelectionChanged="Setting_Changed">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
+                        <TextBlock Text="{loc:Tr Key=GrpBracketSemicolon}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <StackPanel Style="{StaticResource RowPanel}">
                             <TextBlock Text="{loc:Tr Key=LblSemicolon}" Style="{StaticResource LabelStyle}"/>
                             <ComboBox Width="120" ItemsSource="{Binding SemicolonModes}"
@@ -216,25 +234,10 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkSingleQuote}" IsChecked="{Binding Global.SingleQuoteStandardize, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab2：DML 语句 ─── -->
-            <TabItem Header="{loc:Tr Key=TabDml}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- DML 语句（其余项） -->
+                        <TextBlock Text="{loc:Tr Key=TabDml}" Style="{StaticResource SubHeader}"/>
                         <TextBlock Text="{loc:Tr Key=GrpSelect}" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <StackPanel Style="{StaticResource RowPanel}">
-                            <TextBlock Text="{loc:Tr Key=LblComma}" Style="{StaticResource LabelStyle}"/>
-                            <ComboBox Width="120" ItemsSource="{Binding CommaPositions}"
-                                      SelectedItem="{Binding Dml.CommaPosition, Mode=TwoWay}"
-                                      SelectionChanged="Setting_Changed">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate><TextBlock Text="{Binding Converter={StaticResource EnumLocalizer}}"/></DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
                         <StackPanel Style="{StaticResource RowPanel}">
                             <TextBlock Text="{loc:Tr Key=LblAsKeyword}" Style="{StaticResource LabelStyle}"/>
                             <ComboBox Width="120" ItemsSource="{Binding AsKeywordModes}"
@@ -251,20 +254,14 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkAlignColComment}" IsChecked="{Binding Dml.AlignColumnComments, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpFromJoin}" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <CheckBox Content="{loc:Tr Key=ChkJoinNewLine}" IsChecked="{Binding Dml.JoinKeywordNewLine, Mode=TwoWay}"
-                                  Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
+                        <TextBlock Text="{loc:Tr Key=GrpFromJoin}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <CheckBox Content="{loc:Tr Key=ChkIndentJoin}" IsChecked="{Binding Dml.IndentJoinTable, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkLogicBefore}" IsChecked="{Binding Dml.LogicOperatorBefore, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkImplicitJoin}" IsChecked="{Binding Dml.ConvertImplicitJoin, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpWhere}" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <TextBlock Text="{loc:Tr Key=GrpWhere}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <CheckBox Content="{loc:Tr Key=ChkWhereIndent}" IsChecked="{Binding Dml.WhereIndentAllConditions, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkWrapIn}" IsChecked="{Binding Dml.WrapLongInList, Mode=TwoWay}"
@@ -273,9 +270,7 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkNestedParen}" IsChecked="{Binding Dml.NestedParenthesisIndent, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpGroupOrderBy}" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <TextBlock Text="{loc:Tr Key=GrpGroupOrderBy}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <CheckBox Content="{loc:Tr Key=ChkGroupByEach}" IsChecked="{Binding Dml.GroupByEachColumnNewLine, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkHavingWhere}" IsChecked="{Binding Dml.HavingReuseWhereStyle, Mode=TwoWay}"
@@ -284,9 +279,7 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkWindowFunc}" IsChecked="{Binding Dml.WindowFunctionIndent, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-
-                        <Separator Margin="0,10"/>
-                        <TextBlock Text="{loc:Tr Key=GrpIudm}" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <TextBlock Text="{loc:Tr Key=GrpIudm}" FontWeight="Bold" Margin="0,10,0,6"/>
                         <CheckBox Content="{loc:Tr Key=ChkInsertWrap}" IsChecked="{Binding Dml.InsertColumnsWrap, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkValuesAlign}" IsChecked="{Binding Dml.ValuesRowAlign, Mode=TwoWay}"
@@ -297,14 +290,9 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkOutputWrap}" IsChecked="{Binding Dml.OutputClauseWrap, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab3：CTE ─── -->
-            <TabItem Header="{loc:Tr Key=TabCte}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- CTE -->
+                        <TextBlock Text="{loc:Tr Key=TabCte}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkCteSingle}" IsChecked="{Binding Cte.WithSingleLine, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkCteComma}" IsChecked="{Binding Cte.CteCommaNewLine, Mode=TwoWay}"
@@ -318,14 +306,9 @@
                             <TextBox Width="60" Text="{Binding Cte.CteQueryIndent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      TextChanged="Setting_Changed"/>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab4：CASE WHEN ─── -->
-            <TabItem Header="{loc:Tr Key=TabCase}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- CASE WHEN -->
+                        <TextBlock Text="{loc:Tr Key=TabCase}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkCaseWhenNew}" IsChecked="{Binding Case.CaseEachWhenNewLine, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkThenAlign}" IsChecked="{Binding Case.ThenValueAlign, Mode=TwoWay}"
@@ -341,14 +324,9 @@
                             <TextBox Width="60" Text="{Binding Case.WhenConditionIndent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      TextChanged="Setting_Changed"/>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab5：流程控制 ─── -->
-            <TabItem Header="{loc:Tr Key=TabFlow}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- 流程控制 -->
+                        <TextBlock Text="{loc:Tr Key=TabFlow}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkIfBegin}" IsChecked="{Binding Flow.IfBeginSameLine, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkEndIf}" IsChecked="{Binding Flow.EndMatchIfIndent, Mode=TwoWay}"
@@ -361,14 +339,9 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkExecWrap}" IsChecked="{Binding Flow.ExecParamWrap, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab6：DDL ─── -->
-            <TabItem Header="{loc:Tr Key=TabDdl}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- DDL -->
+                        <TextBlock Text="{loc:Tr Key=TabDdl}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkCreateTable}" IsChecked="{Binding Ddl.CreateTableColumnWrap, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkConstraint}" IsChecked="{Binding Ddl.ConstraintAlign, Mode=TwoWay}"
@@ -379,14 +352,9 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkTrigger}" IsChecked="{Binding Ddl.TriggerInsertedIndent, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab7：表达式 ─── -->
-            <TabItem Header="{loc:Tr Key=TabExpression}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- 表达式 -->
+                        <TextBlock Text="{loc:Tr Key=TabExpression}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkOpSpace}" IsChecked="{Binding Expression.OperatorSpacePad, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkInExists}" IsChecked="{Binding Expression.InExistsWrap, Mode=TwoWay}"
@@ -400,14 +368,9 @@
                             <TextBox Width="60" Text="{Binding Expression.SubQueryIndent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      TextChanged="Setting_Changed"/>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <!-- ─── Tab8：特殊 T-SQL ─── -->
-            <TabItem Header="{loc:Tr Key=TabSpecial}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,8">
+                        <!-- 特殊 T-SQL -->
+                        <TextBlock Text="{loc:Tr Key=TabSpecial}" Style="{StaticResource SubHeader}"/>
                         <CheckBox Content="{loc:Tr Key=ChkAddDbo}" IsChecked="{Binding Tsql.AutoAddDboSchema, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkRemoveDbo}" IsChecked="{Binding Tsql.AutoRemoveDboSchema, Mode=TwoWay}"
@@ -418,11 +381,12 @@
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
                         <CheckBox Content="{loc:Tr Key=ChkGlobalVar}" IsChecked="{Binding Tsql.GlobalVariableFormat, Mode=TwoWay}"
                                   Style="{StaticResource CheckRow}" Click="Setting_Changed"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-        </TabControl>
+                    </StackPanel>
+                </Expander>
+
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- ═══════════════════════════════════════════════════════════ -->
         <!-- 行3：SQL 预览 -->
