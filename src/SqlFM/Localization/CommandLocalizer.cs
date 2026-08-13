@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
 
 namespace SqlFM.Localization
