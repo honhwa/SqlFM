@@ -141,7 +141,7 @@
                 </Border>
 
                 <!-- ─── 高级选项（默认折叠，收纳其余 60+ 项，不删任何功能） ─── -->
-                <Expander Grid.Row="0" Margin="0,14,0,0" IsExpanded="False"
+                <Expander Margin="0,14,0,0" IsExpanded="False"
                           Header="{loc:Tr Key=ExpAdvTitle}">
                     <StackPanel Margin="4,8,4,4">
 
