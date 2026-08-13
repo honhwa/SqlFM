@@ -2,7 +2,6 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using SqlFM.Commands;
 using SqlFM.Localization;
-using SqlFM.Options;
 using SqlFM.Services;
 using System;
 using System.Runtime.InteropServices;
@@ -19,8 +18,6 @@ namespace SqlFM
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [Guid(PackageGuidString)]
     [ProvideMenuResource("Menus.ctmenu", 1)]
-    // 注册选项页：工具 → 选项 → SqlFM → General
-    [ProvideOptionPage(typeof(GeneralOptionsPage), "SqlFM", "General", 0, 0, true)]
     // 自动加载：当解决方案存在时加载（确保菜单在 SSMS 启动时可见）
     [ProvideAutoLoad(UIContextGuids80.SolutionExists, PackageAutoLoadFlags.BackgroundLoad)]
     // 备用：无解决方案时也加载（SSMS 可能不使用 Solution 模型）

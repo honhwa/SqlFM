@@ -125,7 +125,6 @@ SqlFM\
 │   ├── Editor\
 │   │   └── EditorHelper.cs               # VS 编辑器交互（获取/替换文本）
 │   ├── Options\
-│   │   ├── GeneralOptionsPage.cs          # 工具 → 选项页（遗留入口，FormatOnSave 已迁至 StyleManager/配置窗口）
 │   │   ├── SettingsWindow.xaml            # WPF 样式配置窗口
 │   │   └── SettingsViewModel.cs           # 配置窗口的 MVVM ViewModel
 │   └── Services\
