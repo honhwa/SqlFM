@@ -150,66 +150,98 @@ namespace SqlFM
             base.Dispose(disposing);
         }
 
-        #region IVsRunningDocTableEvents3 — 保存自动格式化
+        #region IVsRunningDocTableEvents3 — 保存时自动格式化
 
         /// <summary>
-        /// 保存文档后自动格式化（可通过选项开关控制）。
+        /// 防止在自动格式化触发的保存中再次进入格式化逻辑（防御性重入保护）。
         /// </summary>
-        public int OnAfterSave(uint docCookie)
+        private bool _formattingOnSave;
+
+        /// <summary>
+        /// 保存文档“前”自动格式化：在缓冲区写入磁盘之前改写内容，
+        /// 因此格式化结果会随本次保存一并落盘，且不会引发保存死循环。
+        /// 仅对 *.sql 文件、且为当前活动文档时生效（“保存全部”时跳过非活动文档）。
+        /// 开关来自 settings.xml（StyleManager.FormatOnSave），与配置窗口保持一致。
+        /// </summary>
+        public int OnBeforeSave(uint docCookie)
         {
-            // 检查选项：是否启用保存自动格式化
+            if (_formattingOnSave)
+                return Microsoft.VisualStudio.VSConstants.S_OK;
+
             try
             {
-                var optionsPage = (GeneralOptionsPage?)GetDialogPage(typeof(GeneralOptionsPage));
-                if (optionsPage == null || !optionsPage.FormatOnSave)
-                {
+                // 开关关闭时直接跳过
+                if (!StyleManager.LoadFormatOnSave())
                     return Microsoft.VisualStudio.VSConstants.S_OK;
-                }
-            }
-            catch
-            {
-                // 选项页不可用时，不自动格式化
-                return Microsoft.VisualStudio.VSConstants.S_OK;
-            }
 
-            // 在 UI 线程执行格式化
-            ThreadHelper.JoinableTaskFactory.Run(async () =>
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                // 解析被保存文档的路径
+                string docPath = string.Empty;
+                _rdt?.GetDocumentInfo(docCookie, out _, out _, out _, out docPath, out _, out _, out _);
+                if (string.IsNullOrEmpty(docPath))
+                    return Microsoft.VisualStudio.VSConstants.S_OK;
 
-                try
+                // 仅对 SQL 文件生效，避免误改其它类型文件
+                if (!docPath.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
+                    return Microsoft.VisualStudio.VSConstants.S_OK;
+
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
-                    var dte = (EnvDTE80.DTE2?)await GetServiceAsync(typeof(EnvDTE.DTE));
-                    if (dte == null || !Editor.EditorHelper.HasActiveTextDocument(dte))
-                        return;
-
-                    string? allText = Editor.EditorHelper.GetAllText(dte);
-                    if (string.IsNullOrEmpty(allText))
-                        return;
-
-                    var result = FormatService.FormatAll(allText!);
-                    if (result.Success && result.FormattedSql != allText)
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    try
                     {
-                        Editor.EditorHelper.ReplaceAllText(dte, result.FormattedSql);
+                        var dte = (EnvDTE80.DTE2?)await GetServiceAsync(typeof(EnvDTE.DTE));
+                        if (dte == null || dte.ActiveDocument == null)
+                            return;
+                        // 仅处理真正被保存的活动文档（“保存全部”时不会误改其它文档）
+                        if (!string.Equals(dte.ActiveDocument.FullName, docPath, StringComparison.OrdinalIgnoreCase))
+                            return;
+                        if (!Editor.EditorHelper.HasActiveTextDocument(dte))
+                            return;
+
+                        string? allText = Editor.EditorHelper.GetAllText(dte);
+                        if (string.IsNullOrEmpty(allText))
+                            return;
+
+                        var result = FormatService.FormatAll(allText!);
+                        if (result.Success && result.FormattedSql != allText)
+                        {
+                            _formattingOnSave = true;
+                            try
+                            {
+                                Editor.EditorHelper.ReplaceAllText(dte, result.FormattedSql);
+                            }
+                            finally
+                            {
+                                _formattingOnSave = false;
+                            }
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[SqlFM] 保存自动格式化失败: {ex.Message}");
-                }
-            });
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SqlFM] 保存前自动格式化失败: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SqlFM] OnBeforeSave 异常: {ex.Message}");
+            }
 
             return Microsoft.VisualStudio.VSConstants.S_OK;
         }
 
-        // 以下 IVsRunningDocTableEvents3 成员为空实现（仅需 OnAfterSave）
+        /// <summary>
+        /// 保存后无需额外处理（格式化已在 OnBeforeSave 中完成并随保存落盘）。
+        /// </summary>
+        public int OnAfterSave(uint docCookie) => Microsoft.VisualStudio.VSConstants.S_OK;
+
+        // 以下 IVsRunningDocTableEvents3 成员为空实现（仅需 OnBeforeSave）
         public int OnAfterFirstDocumentLock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining) => Microsoft.VisualStudio.VSConstants.S_OK;
         public int OnBeforeLastDocumentUnlock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining) => Microsoft.VisualStudio.VSConstants.S_OK;
         public int OnAfterAttributeChange(uint docCookie, uint grfAttribs) => Microsoft.VisualStudio.VSConstants.S_OK;
         public int OnBeforeDocumentWindowShow(uint docCookie, int fFirstShow, IVsWindowFrame pFrame) => Microsoft.VisualStudio.VSConstants.S_OK;
         public int OnAfterDocumentWindowHide(uint docCookie, IVsWindowFrame pFrame) => Microsoft.VisualStudio.VSConstants.S_OK;
         public int OnAfterAttributeChangeEx(uint docCookie, uint grfAttribs, IVsHierarchy pHierOld, uint itemidOld, string pszMkDocumentOld, IVsHierarchy pHierNew, uint itemidNew, string pszMkDocumentNew) => Microsoft.VisualStudio.VSConstants.S_OK;
-        public int OnBeforeSave(uint docCookie) => Microsoft.VisualStudio.VSConstants.S_OK;
 
         #endregion
 

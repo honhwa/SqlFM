@@ -454,11 +454,22 @@
         <!-- 行4：底部按钮 -->
         <!-- ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="3" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0" Padding="8,8">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="{loc:Tr Key=BtnOk}" Width="80" Margin="0,0,8,0" IsDefault="True" Click="OkButton_Click"/>
-                <Button Content="{loc:Tr Key=BtnCancel}" Width="80" Margin="0,0,8,0" IsCancel="True" Click="CancelButton_Click"/>
-                <Button Content="{loc:Tr Key=BtnApply}" Width="80" Click="ApplyButton_Click"/>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0"
+                          Content="{loc:Tr Key=ChkFormatOnSave}"
+                          ToolTip="{loc:Tr Key=ChkFormatOnSaveTip}"
+                          IsChecked="{Binding FormatOnSave, Mode=TwoWay}"
+                          VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{loc:Tr Key=BtnOk}" Width="80" Margin="0,0,8,0" IsDefault="True" Click="OkButton_Click"/>
+                    <Button Content="{loc:Tr Key=BtnCancel}" Width="80" Margin="0,0,8,0" IsCancel="True" Click="CancelButton_Click"/>
+                    <Button Content="{loc:Tr Key=BtnApply}" Width="80" Click="ApplyButton_Click"/>
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

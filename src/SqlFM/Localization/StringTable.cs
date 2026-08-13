@@ -139,6 +139,8 @@ namespace SqlFM.Localization
             ["BtnOk"] = "确定",
             ["BtnCancel"] = "取消",
             ["BtnApply"] = "应用",
+            ["ChkFormatOnSave"] = "保存时自动格式化 SQL",
+            ["ChkFormatOnSaveTip"] = "保存 .sql 文件时自动按当前默认样式格式化",
 
             // ── 命令 / 菜单 ──
             ["CmdFormatSelected"] = "格式化选中",
@@ -330,6 +332,8 @@ namespace SqlFM.Localization
             ["BtnOk"] = "OK",
             ["BtnCancel"] = "Cancel",
             ["BtnApply"] = "Apply",
+            ["ChkFormatOnSave"] = "Auto-format on save",
+            ["ChkFormatOnSaveTip"] = "Automatically format .sql files with the current default style when saving",
 
             // ── 命令 / 菜单 ──
             ["CmdFormatSelected"] = "Format Selected SQL",

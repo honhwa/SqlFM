@@ -14,16 +14,6 @@ namespace SqlFM.Options
     public class GeneralOptionsPage : DialogPage
     {
         /// <summary>
-        /// 是否启用保存时自动格式化。
-        /// 默认值为 false。
-        /// </summary>
-        [Category("格式化")]
-        [DisplayName("保存时自动格式化")]
-        [Description("保存文件时自动格式化 SQL 文本")]
-        [DefaultValue(false)]
-        public bool FormatOnSave { get; set; } = false;
-
-        /// <summary>
         /// 每级缩进的空格数。支持 2、4 或 8。
         /// 默认值为 4。
         /// </summary>

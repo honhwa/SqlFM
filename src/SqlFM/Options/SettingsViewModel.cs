@@ -38,6 +38,7 @@ namespace SqlFM.Options
         private string _previewSql = string.Empty;
         private string _searchText = string.Empty;
         private string _selectedStyleName = "Default";
+        private bool _formatOnSave = StyleManager.LoadFormatOnSave();
         private readonly FormatterPipeline _pipeline = new FormatterPipeline();
 
         // ── 构造 ──────────────────────────────────────────────────────────
@@ -99,6 +100,20 @@ namespace SqlFM.Options
         {
             get => _previewSql;
             private set { _previewSql = value; OnPropertyChanged(); }
+        }
+
+        // ── 保存时自动格式化开关（全局行为，非样式属性）─────────────────
+        /// <summary>是否启用保存时自动格式化（仅对 .sql 文件生效）。</summary>
+        public bool FormatOnSave
+        {
+            get => _formatOnSave;
+            set
+            {
+                if (_formatOnSave == value) return;
+                _formatOnSave = value;
+                StyleManager.SaveFormatOnSave(value);
+                OnPropertyChanged();
+            }
         }
 
         // ── 当前样式（根节点）────────────────────────────────────────────

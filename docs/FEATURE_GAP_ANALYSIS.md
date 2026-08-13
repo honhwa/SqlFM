@@ -248,7 +248,7 @@
 | 快捷键绑定 | ✅ | VSCT KeyBindings (6 组) |
 | 右键上下文菜单 | ✅ | VSCT ContextMenuGroup |
 | 工具栏按钮 | ✅ | VSCT SqlFMToolbar (3 个按钮) |
-| 保存自动格式化 | ✅ | `GeneralOptionsPage.FormatOnSave` |
+| 保存自动格式化 | ✅ | `StyleManager.FormatOnSave`（settings.xml，配置窗口开关控制，OnBeforeSave 落盘） |
 | WPF 可视化配置窗口 | ✅ | `SettingsWindow.xaml` (8 个 Tab) |
 
 ---

@@ -127,6 +127,20 @@ namespace SqlFM.Services
             SaveSettings(settings);
         }
 
+        /// <summary>读取是否启用保存时自动格式化。</summary>
+        public static bool LoadFormatOnSave()
+        {
+            return LoadSettings().FormatOnSave;
+        }
+
+        /// <summary>保存保存时自动格式化开关（保留其他设置）。</summary>
+        public static void SaveFormatOnSave(bool enabled)
+        {
+            var settings = LoadSettings();
+            settings.FormatOnSave = enabled;
+            SaveSettings(settings);
+        }
+
         // ── 内部工具 ──────────────────────────────────────────────────────────
 
         private static AppSettings LoadSettings()
@@ -191,5 +205,9 @@ namespace SqlFM.Services
         /// <summary>界面语言偏好（zh-Cn / en / auto），序列化到 settings.xml</summary>
         [XmlElement]
         public string InterfaceLanguage { get; set; } = "auto";
+
+        /// <summary>保存时自动格式化开关（仅对 .sql 文件生效），序列化到 settings.xml</summary>
+        [XmlElement]
+        public bool FormatOnSave { get; set; } = false;
     }
 }
