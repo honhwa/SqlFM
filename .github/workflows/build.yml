@@ -26,11 +26,11 @@ jobs:
 
       # 构建全部 5 个项目（VSIX / Core / Cli / 两个测试），产出 SqlFM.vsix
       - name: Build solution (Release)
-        run: msbuild SqlFM.sln /p:Configuration=Release '/p:Platform="Any CPU"' /m
+        run: msbuild SqlFM.sln /p:Configuration=Release /p:Platform="Any CPU" /m
 
       # 安装包项目不在 sln 内，单独构建；内嵌上一步生成的 VSIX
       - name: Build installer (embeds VSIX)
-        run: msbuild setup/SqlFM.Setup.csproj /p:Configuration=Release '/p:Platform="Any CPU"'
+        run: msbuild setup/SqlFM.Setup.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
       # 核心层单元测试（仅依赖 SqlFM.Core，CI 可直接运行）
       - name: Run Core unit tests
