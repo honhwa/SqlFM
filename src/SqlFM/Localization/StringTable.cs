@@ -25,6 +25,8 @@ namespace SqlFM.Localization
             ["LangZh"] = "中文",
             ["LangEn"] = "English",
             ["LangAuto"] = "跟随系统",
+            ["GrpCore"] = "常用设置",
+            ["ExpAdvTitle"] = "高级选项（更多格式化细节）",
 
             // ── Tab 头 ──
             ["TabGeneral"] = "全局通用",
@@ -218,6 +220,8 @@ namespace SqlFM.Localization
             ["LangZh"] = "中文",
             ["LangEn"] = "English",
             ["LangAuto"] = "Follow System",
+            ["GrpCore"] = "Common Settings",
+            ["ExpAdvTitle"] = "Advanced Options (more formatting details)",
 
             // ── Tab 头 ──
             ["TabGeneral"] = "General",
