@@ -34,7 +34,7 @@ namespace SqlFM.Core.Engine
             public override void Visit(AlterProcedureStatement node) => Collect(node.Parameters);
             public override void Visit(CreateProcedureStatement node) => Collect(node.Parameters);
 
-            private static void Collect(IList<Parameter> parameters)
+            private static void Collect(IList<ProcedureParameter> parameters)
             {
                 var info = new ProcInfo();
                 foreach (var p in parameters)
