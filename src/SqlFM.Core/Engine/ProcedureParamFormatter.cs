@@ -31,21 +31,16 @@ namespace SqlFM.Core.Engine
         {
             public readonly List<ProcInfo> Procs = new List<ProcInfo>();
 
-            public override void Visit(AlterProcedureStatement node) => Collect(node.Parameters);
-            public override void Visit(CreateProcedureStatement node) => Collect(node.Parameters);
-
-            private static void Collect(IList<ProcedureParameter> parameters)
+            public override void Visit(AlterProcedureStatement node)
             {
-                var info = new ProcInfo();
-                foreach (var p in parameters)
-                {
-                    info.Params.Add(new ParamInfo
-                    {
-                        FirstTokenIndex = p.FirstTokenIndex,
-                        LastTokenIndex = p.LastTokenIndex
-                    });
-                }
-                Procs.Add(info);
+                foreach (var p in node.Parameters)
+                    Procs.Add(new ParamInfo { FirstTokenIndex = p.FirstTokenIndex, LastTokenIndex = p.LastTokenIndex });
+            }
+
+            public override void Visit(CreateProcedureStatement node)
+            {
+                foreach (var p in node.Parameters)
+                    Procs.Add(new ParamInfo { FirstTokenIndex = p.FirstTokenIndex, LastTokenIndex = p.LastTokenIndex });
             }
         }
 
