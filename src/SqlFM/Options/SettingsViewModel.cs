@@ -36,7 +36,6 @@ namespace SqlFM.Options
         private IList<SqlFormatStyle> _allStyles = new List<SqlFormatStyle>();
         private SqlFormatStyle _currentStyle = PresetStyleFactory.CreateDefault();
         private string _previewSql = string.Empty;
-        private string _searchText = string.Empty;
         private string _selectedStyleName = "Default";
         private bool _formatOnSave = StyleManager.LoadFormatOnSave();
         private readonly FormatterPipeline _pipeline = new FormatterPipeline();
@@ -85,14 +84,6 @@ namespace SqlFM.Options
 
         /// <summary>当前样式是否为系统内置预设（不可删除/重命名）</summary>
         private bool IsCurrentStyleSystemPreset => _currentStyle.IsSystemPreset;
-
-        // ── 搜索文本 ──────────────────────────────────────────────────────
-        /// <summary>配置项搜索关键字，实时过滤左侧 Tab 页列表</summary>
-        public string SearchText
-        {
-            get => _searchText;
-            set { _searchText = value; OnPropertyChanged(); OnPropertyChanged(nameof(FilteredTabs)); }
-        }
 
         // ── SQL 预览 ──────────────────────────────────────────────────────
         /// <summary>格式化预览结果文本（只读，由配置变更自动刷新）</summary>
@@ -153,28 +144,6 @@ namespace SqlFM.Options
         public IEnumerable<SemicolonMode> SemicolonModes => Enum.GetValues(typeof(SemicolonMode)).Cast<SemicolonMode>();
         /// <summary>AS 关键字模式可选项</summary>
         public IEnumerable<AsKeywordMode> AsKeywordModes => Enum.GetValues(typeof(AsKeywordMode)).Cast<AsKeywordMode>();
-
-        // ── 搜索过滤后的 Tab 名称（未使用时返回全部）─────────────────────
-        public IEnumerable<string> FilteredTabs
-        {
-            get
-            {
-                var all = new[]
-                {
-                    Localizer.Get("TabGeneral"),
-                    Localizer.Get("TabDml"),
-                    Localizer.Get("TabCte"),
-                    Localizer.Get("TabCase"),
-                    Localizer.Get("TabFlow"),
-                    Localizer.Get("TabDdl"),
-                    Localizer.Get("TabExpression"),
-                    Localizer.Get("TabSpecial")
-                };
-                if (string.IsNullOrWhiteSpace(_searchText))
-                    return all;
-                return all.Where(t => t.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) >= 0);
-            }
-        }
 
         // ── 命令 ──────────────────────────────────────────────────────────
         /// <summary>新建样式命令</summary>
