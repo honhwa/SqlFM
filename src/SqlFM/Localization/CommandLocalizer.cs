@@ -18,7 +18,7 @@ namespace SqlFM.Localization
         {
             var command = new OleMenuCommand(invokeHandler, commandId);
             command.Text = Localizer.Get(locKey);
-            Localizer.LanguageChanged += (s, e) => command.Text = Localizer.Get(locKey);
+            Localizer.Instance.LanguageChanged += (s, e) => command.Text = Localizer.Get(locKey);
             return command;
         }
     }
