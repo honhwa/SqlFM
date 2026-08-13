@@ -193,6 +193,14 @@ namespace SqlFM.Core.Engine
                 sql = RemoveExcessBlankLines(sql);
             }
 
+            // 修复 Poor Man's 对 ALTER/CREATE PROCEDURE 参数列表行内注释错位的缺陷
+            // （PoorMans 解析器会把参数后的行内注释错位到逗号之后；此处用 ScriptDom 重排归位）
+            sql = SafeRefactor(() => ProcedureParamFormatter.Fix(sql, _style), sql);
+            if (g.TrimTrailingSpaces)
+            {
+                sql = TrimTrailingWhitespace(sql);
+            }
+
             // ── 大小写转换 ──
 
             // 函数名/数据类型大小写（基于 ScriptDom token 流，Upper 是 PoorMans 默认无需处理）
