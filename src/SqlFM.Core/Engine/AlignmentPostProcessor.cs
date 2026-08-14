@@ -1605,7 +1605,7 @@ namespace SqlFM.Core.Engine
         /// 
         /// 算法：
         /// 1. 用 TSql160Parser 将 SQL 解析为 AST + token 流
-        /// 2. 遍历所有 SelectStatement，提取顶层子句节点（SELECT/FROM/JOIN列表/WHERE/GROUP BY/HAVING/ORDER BY）
+        /// 2. 遍历所有 QuerySpecification（含顶层与子查询），提取子句节点（SELECT/FROM/JOIN列表/WHERE/GROUP BY/HAVING/ORDER BY）
         /// 3. 计算各子句关键字的文本长度，取 maxKeyLen = 最大值
         /// 4. 对每个子句：前置空格 = maxKeyLen - 当前关键字长度
         ///    输出：' ' * 前置空格 + 关键字 + ' ' + 子句第一行业务内容
@@ -1614,7 +1614,9 @@ namespace SqlFM.Core.Engine
         /// 
         /// JOIN 系列（INNER/LEFT/RIGHT/CROSS/FULL OUTER JOIN）整串纳入对齐；
         /// ON 条件继续留在 JOIN 同一行（由 PoorMans 的 JoinKeywordNewLine 控制）。
-        /// 仅处理顶层 SELECT 语句的子句，子查询内的同名关键字不受影响。
+        /// 通过访问 QuerySpecification 同时覆盖顶层与所有子查询（WHERE IN/EXISTS、
+        /// FROM 派生表、SELECT 列表标量子查询等），每个查询块按自身基础缩进独立右对齐，
+        /// 使嵌套结构与外层查询风格一致。
         /// </summary>
         /// <param name="sql">待处理的 SQL 文本（PoorMans 已格式化后的输出）</param>
         /// <returns>子句关键字右对齐后的 SQL 文本</summary>
@@ -1640,7 +1642,7 @@ namespace SqlFM.Core.Engine
 
                 if (extractor.Statements.Count == 0) return sql;
 
-                // 对每个 SELECT 语句独立处理
+                // 对每个查询块（顶层或子查询）独立处理，每个块按自身缩进层级计算对齐
                 foreach (var stmt in extractor.Statements)
                 {
                     if (stmt.Clauses.Count < 2) continue; // 至少需要 2 个子句才有对齐意义
@@ -1651,13 +1653,29 @@ namespace SqlFM.Core.Engine
                         maxKeyLen = Math.Max(maxKeyLen, c.KeywordText.Length);
                     if (maxKeyLen <= 0) continue;
 
+                    // 该查询块的基础缩进：其所有子句关键字行的公共前导空白。
+                    // 顶层查询为 0；嵌在括号内的子查询为括号内缩进（如 7 个空格）。
+                    // 续行与关键字右对齐都相对此 baseIndent，确保嵌套结构与外层风格一致。
+                    int baseIndent = int.MaxValue;
+                    foreach (var c in stmt.Clauses)
+                    {
+                        if (c.LineIndex >= 0 && c.LineIndex < lines.Length)
+                        {
+                            int ind = lines[c.LineIndex].Length - lines[c.LineIndex].TrimStart().Length;
+                            if (ind < baseIndent) baseIndent = ind;
+                        }
+                    }
+                    if (baseIndent == int.MaxValue) baseIndent = 0;
+
                     // 第一步：对每个子句关键字行做右对齐，并规范化关键字与内容之间仅保留一个空格间隔
                     foreach (var c in stmt.Clauses)
                     {
                         if (c.LineIndex < 0 || c.LineIndex >= lines.Length) continue;
                         string line = lines[c.LineIndex];
                         int indent = line.Length - line.TrimStart().Length;
-                        int kwEnd = indent + c.KeywordText.Length;
+                        // 关键字实际起始位置（行首缩进处）
+                        int kwStart = indent;
+                        int kwEnd = kwStart + c.KeywordText.Length;
                         if (kwEnd > line.Length) continue;
 
                         int pad = maxKeyLen - c.KeywordText.Length;
@@ -1670,13 +1688,15 @@ namespace SqlFM.Core.Engine
                             contentStart++;
                         string content = contentStart < line.Length ? line.Substring(contentStart) : string.Empty;
 
-                        // 右对齐：在关键字【前面】补 pad 空格，使所有关键字最后一个字母落同一列；
-                        // 关键字与内容之间仅保留 1 个分隔空格
-                        lines[c.LineIndex] = new string(' ', indent + pad) + c.KeywordText + " " + content;
+                        // 右对齐：相对 baseIndent 在关键字【前面】补 pad 空格，使本块所有关键字
+                        // 最后一个字母落同一列（baseIndent + maxKeyLen）；关键字与内容之间仅保留 1 个分隔空格
+                        int newStart = baseIndent + pad;
+                        lines[c.LineIndex] = new string(' ', newStart) + c.KeywordText + " " + content;
                     }
 
-                    // 第二步：多行列表后续行统一缩进到 maxKeyLen + 1 列
-                    int contentIndent = maxKeyLen + 1;
+                    // 第二步：多行列表后续行统一缩进到 baseIndent + maxKeyLen + 1 列
+                    // （相对本块基础缩进，而非页面左缘，从而保证嵌套子查询的续行随层级缩进）
+                    int contentIndent = baseIndent + maxKeyLen + 1;
                     for (int ci = 0; ci < stmt.Clauses.Count; ci++)
                     {
                         var c = stmt.Clauses[ci];
@@ -1691,10 +1711,11 @@ namespace SqlFM.Core.Engine
                             string curLine = lines[li];
                             if (string.IsNullOrWhiteSpace(curLine)) continue;
                             string trimmed = curLine.TrimStart();
-                            // 跳过空行和注释行
-                            if (trimmed.Length == 0 || trimmed.StartsWith("--") || trimmed.StartsWith("/*"))
+                            // 跳过空行和注释行；也跳过子查询闭合 ) 行（如 ")" 或 ") s"），避免重缩进破坏结构
+                            if (trimmed.Length == 0 || trimmed.StartsWith("--") || trimmed.StartsWith("/*")
+                                || trimmed.StartsWith(")"))
                                 continue;
-                            // 续行统一缩进到 contentIndent 列（maxKeyLen + 1）
+                            // 续行统一缩进到 contentIndent 列（baseIndent + maxKeyLen + 1）
                             int curIndent = curLine.Length - trimmed.Length;
                             if (curIndent != contentIndent)
                                 lines[li] = new string(' ', contentIndent) + trimmed;
@@ -1727,10 +1748,13 @@ namespace SqlFM.Core.Engine
                 _lines = lines;
             }
 
-            public override void Visit(SelectStatement node)
+            // 同时覆盖顶层 SELECT 语句内部的 QuerySpecification 与所有子查询
+            // （WHERE IN/EXISTS、FROM 派生表、SELECT 列表标量子查询等）。
+            // 子查询在 ScriptDom 中是 QuerySpecification 节点而非 SelectStatement，
+            // 因此访问 QuerySpecification 才能把嵌套查询一并纳入右对齐。
+            public override void Visit(QuerySpecification node)
             {
-                if (!(node.QueryExpression is QuerySpecification qs)) return;
-
+                var qs = node;
                 var clauses = new List<ClauseInfo>();
                 int endLine = -1;
 
@@ -1759,7 +1783,7 @@ namespace SqlFM.Core.Engine
                 if (qs.HavingClause != null)
                     clauses.Add(MakeClause("HAVING", qs.HavingClause));
 
-                // ORDER BY（在 QuerySpecification 上）
+                // ORDER BY（在 QuerySpecification 上；顶层 SELECT 的 ORDER BY 同样挂在 qs 上）
                 if (qs.OrderByClause != null)
                     clauses.Add(MakeClause("ORDER BY", qs.OrderByClause));
 
@@ -1767,7 +1791,7 @@ namespace SqlFM.Core.Engine
                 if (clauses.Count > 0)
                 {
                     var lastClause = clauses[clauses.Count - 1];
-                    TSqlFragment lastNode = GetLastNodeForClause(node, lastClause.KeywordText);
+                    TSqlFragment lastNode = GetLastNodeForClause(qs, lastClause.KeywordText);
                     endLine = TokenToLine(lastNode.LastTokenIndex);
                     // 如果分号在更后面，扩展到分号
                     for (int i = endLine + 1; i < _lines.Length; i++)
@@ -1861,18 +1885,16 @@ namespace SqlFM.Core.Engine
             }
 
             /// <summary>根据关键字文本获取对应的 AST 节点（用于定位语句结束位置）。</summary>
-            private static TSqlFragment GetLastNodeForClause(SelectStatement stmt, string keyword)
+            private static TSqlFragment GetLastNodeForClause(QuerySpecification qs, string keyword)
             {
-                var qs = stmt.QueryExpression as QuerySpecification;
-                if (keyword == "ORDER BY" && qs != null && qs.OrderByClause != null) return qs.OrderByClause;
-                if (qs == null) return stmt;
+                if (keyword == "ORDER BY" && qs.OrderByClause != null) return qs.OrderByClause;
                 if (keyword == "HAVING" && qs.HavingClause != null) return qs.HavingClause;
                 if (keyword == "GROUP BY" && qs.GroupByClause != null) return qs.GroupByClause;
                 if (keyword == "WHERE" && qs.WhereClause != null) return qs.WhereClause;
                 if (keyword.Contains("JOIN") && qs.FromClause != null) return qs.FromClause;
                 if (keyword == "FROM" && qs.FromClause != null) return qs.FromClause;
                 if (qs.SelectElements.Count > 0) return qs.SelectElements[qs.SelectElements.Count - 1];
-                return stmt;
+                return qs;
             }
 
             /// <summary>判断指定行是否为续行（缩进大于 0 且非空/注释/新子句开头）。</summary>
@@ -1892,6 +1914,8 @@ namespace SqlFM.Core.Engine
                 if (upper.StartsWith("GROUP BY") || upper.StartsWith("ORDER BY")
                     || upper.StartsWith("HAVING") || upper.StartsWith("UNION")
                     || upper.StartsWith("EXCEPT") || upper.StartsWith("INTERSECT")) return false;
+                // 子查询闭合 ) 行（如 ")" 或 ") s"）→ 不是续行，避免 endLine 越过子查询末尾
+                if (t.StartsWith(")")) return false;
                 return true;
             }
         }

@@ -113,5 +113,88 @@ namespace SqlFM.Core.Tests
             }
             throw new Exception("关键字未找到：" + keyword);
         }
+
+        /// <summary>返回缩进最深（即嵌套最内层）的关键字最后一个字母所在的 1-based 列号。
+        /// 用于定位子查询内部的子句关键字，避免与外层同名关键字混淆。</summary>
+        private static int EndColOfDeepest(string[] lines, string keyword)
+        {
+            int bestIndent = -1;
+            int bestEnd = -1;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var trimmed = lines[i].TrimStart();
+                int indent = lines[i].Length - trimmed.Length;
+                if (trimmed.StartsWith(keyword, StringComparison.OrdinalIgnoreCase) && indent > bestIndent)
+                {
+                    bestIndent = indent;
+                    bestEnd = indent + keyword.Length;
+                }
+            }
+            if (bestIndent < 0) throw new Exception("关键字未找到：" + keyword);
+            return bestEnd;
+        }
+
+        /// <summary>子查询（WHERE IN）内部的 SELECT / FROM / WHERE 应按各自末尾字母统一右对齐到同一列。</summary>
+        [Fact]
+        public void AlignClauseKeyword_SubqueryInWhere_InnerClausesAligned()
+        {
+            var sql = "SELECT o.OrderID, o.Total FROM Orders o " +
+                      "WHERE o.OrderID IN (SELECT c.OrderID FROM Customers c WHERE c.Active = 1) " +
+                      "AND o.Total > (SELECT MAX(d.Amt) FROM Details d WHERE d.X = 2);";
+
+            var result = FormatWithAlign(sql);
+            var lines = result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+            int selEnd = EndColOfDeepest(lines, "SELECT");
+            int fromEnd = EndColOfDeepest(lines, "FROM");
+            int whereEnd = EndColOfDeepest(lines, "WHERE");
+
+            // 子查询内部各子句关键字末尾字母必须同列（相对子查询自身缩进层级）
+            Assert.Equal(selEnd, fromEnd);
+            Assert.Equal(selEnd, whereEnd);
+        }
+
+        /// <summary>FROM 派生表子查询内部的 SELECT / FROM / WHERE / GROUP BY 均应右对齐到同一列。</summary>
+        [Fact]
+        public void AlignClauseKeyword_DerivedTable_InnerClausesAligned()
+        {
+            var sql = "SELECT s.CustomerID, s.TotalAmt " +
+                      "FROM (SELECT CustomerID, SUM(Amount) AS TotalAmt FROM Orders WHERE Status = 'A' GROUP BY CustomerID) s " +
+                      "WHERE s.TotalAmt > 100 ORDER BY s.TotalAmt DESC;";
+
+            var result = FormatWithAlign(sql);
+            var lines = result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+            int selEnd = EndColOfDeepest(lines, "SELECT");
+            int fromEnd = EndColOfDeepest(lines, "FROM");
+            int whereEnd = EndColOfDeepest(lines, "WHERE");
+            int groupEnd = EndColOfDeepest(lines, "GROUP BY");
+
+            Assert.Equal(selEnd, fromEnd);
+            Assert.Equal(selEnd, whereEnd);
+            Assert.Equal(selEnd, groupEnd);
+        }
+
+        /// <summary>SELECT 列表中的标量子查询内部子句也应右对齐；闭合 ) 不得被重缩进破坏结构。</summary>
+        [Fact]
+        public void AlignClauseKeyword_ScalarSubquery_ClosedParenPreserved()
+        {
+            var sql = "SELECT o.OrderID, (SELECT COUNT(*) FROM Details d WHERE d.OrderID = o.OrderID) AS Cnt " +
+                      "FROM Orders o WHERE o.Total > 0;";
+
+            var result = FormatWithAlign(sql);
+            var lines = result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // 子查询内部子句右对齐
+            int selEnd = EndColOfDeepest(lines, "SELECT");
+            int fromEnd = EndColOfDeepest(lines, "FROM");
+            int whereEnd = EndColOfDeepest(lines, "WHERE");
+            Assert.Equal(selEnd, fromEnd);
+            Assert.Equal(selEnd, whereEnd);
+
+            // 闭合 ) 必须保留（不得因续行重缩进而被破坏）：存在以 ) 开头的行
+            bool hasClosingParen = lines.Any(l => l.TrimStart().StartsWith(")"));
+            Assert.True(hasClosingParen, "应保留子查询闭合 ) 行");
+        }
     }
 }
