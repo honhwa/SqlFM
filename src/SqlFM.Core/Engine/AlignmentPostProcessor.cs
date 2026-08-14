@@ -1670,8 +1670,9 @@ namespace SqlFM.Core.Engine
                             contentStart++;
                         string content = contentStart < line.Length ? line.Substring(contentStart) : string.Empty;
 
-                        // 右对齐：pad 个空格用于对齐 + 1 个空格作为关键字与内容的分隔间隔
-                        lines[c.LineIndex] = line.Substring(0, kwEnd) + new string(' ', pad + 1) + content;
+                        // 右对齐：在关键字【前面】补 pad 空格，使所有关键字最后一个字母落同一列；
+                        // 关键字与内容之间仅保留 1 个分隔空格
+                        lines[c.LineIndex] = new string(' ', indent + pad) + c.KeywordText + " " + content;
                     }
 
                     // 第二步：多行列表后续行统一缩进到 maxKeyLen + 1 列
@@ -1693,9 +1694,9 @@ namespace SqlFM.Core.Engine
                             // 跳过空行和注释行
                             if (trimmed.Length == 0 || trimmed.StartsWith("--") || trimmed.StartsWith("/*"))
                                 continue;
-                            // 只调整比当前 contentIndent 缩进更深的行（即子句内容的续行）
+                            // 续行统一缩进到 contentIndent 列（maxKeyLen + 1）
                             int curIndent = curLine.Length - trimmed.Length;
-                            if (curIndent > 0 && curIndent != contentIndent)
+                            if (curIndent != contentIndent)
                                 lines[li] = new string(' ', contentIndent) + trimmed;
                         }
                     }
@@ -1781,6 +1782,7 @@ namespace SqlFM.Core.Engine
                     }
                 }
 
+                clauses.Sort((a, b) => a.LineIndex.CompareTo(b.LineIndex));
                 if (clauses.Count >= 2)
                     Statements.Add(new SelectClauseGroup { Clauses = clauses, EndLineIndex = endLine });
             }
@@ -1795,7 +1797,9 @@ namespace SqlFM.Core.Engine
                     {
                         string joinKw = JoinTypeToString(qj.QualifiedJoinType);
                         clauses.Add(MakeClause(joinKw, qj));
-                        // 递归处理嵌套 JOIN（第二个操作数可能也是 QualifiedJoin）
+                        // 嵌套 JOIN 可能位于第一个或第二个操作数（ScriptDom 把 A JOIN B JOIN C
+                        // 表示为外层 QJ 的 FirstTableReference = 内层 QJ），两者都要递归
+                        ExtractJoins(clauses, new[] { qj.FirstTableReference });
                         ExtractJoins(clauses, new[] { qj.SecondTableReference });
                     }
                 }
@@ -1816,12 +1820,35 @@ namespace SqlFM.Core.Engine
 
             private ClauseInfo MakeClause(string keyword, TSqlFragment node)
             {
+                int tokenIndex = node.FirstTokenIndex;
+                // QualifiedJoin.FirstTokenIndex 指向第一个表（如 Orders），而非 JOIN 关键字，
+                // 故需在区间内定位真正的 JOIN 关键字 token 以确定正确行号
+                if (node is QualifiedJoin qj)
+                {
+                    // JOIN 关键字位于第一个表引用之后。从 FirstTableReference 末尾之后开始查找，
+                    // 避免把内层 JOIN 的 JOIN 关键字误判为外层 JOIN 的位置
+                    // （外层 LEFT JOIN 与内层 INNER JOIN 共享 FirstTokenIndex=Orders，直接从头找会命中内层的 JOIN）
+                    int start = (qj.FirstTableReference != null)
+                        ? qj.FirstTableReference.LastTokenIndex + 1
+                        : qj.FirstTokenIndex;
+                    int joinIdx = FindJoinTokenIndex(start, qj.LastTokenIndex);
+                    if (joinIdx >= 0) tokenIndex = joinIdx;
+                }
                 return new ClauseInfo
                 {
                     KeywordText = keyword,
-                    LineIndex = TokenToLine(node.FirstTokenIndex),
-                    TokenIndex = node.FirstTokenIndex
+                    LineIndex = TokenToLine(tokenIndex),
+                    TokenIndex = tokenIndex
                 };
+            }
+
+            /// <summary>在 [from,to] token 区间内查找 JOIN 关键字 token 的索引。</summary>
+            private int FindJoinTokenIndex(int from, int to)
+            {
+                for (int i = Math.Max(0, from); i <= to && i < _tokens.Count; i++)
+                    if (_tokens[i].TokenType == TSqlTokenType.Join)
+                        return i;
+                return -1;
             }
 
             /// <summary>将 token 索引映射到行号。</summary>
