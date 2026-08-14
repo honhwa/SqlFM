@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SqlFM.Core.Configuration;
 
 namespace SqlFM.Core.Engine
@@ -85,6 +87,10 @@ namespace SqlFM.Core.Engine
             // P4-11: DECLARE 多变量纵向对齐
             if (style.Tsql.AlignDeclareVariables)
                 sql = SafeAlign(() => AlignDeclareVariables(sql), sql);
+
+            // P5: 子句关键字右对齐（仅对含 GROUP BY / ORDER BY 的语句生效）
+            if (dml.AlignClauseKeyword)
+                sql = SafeAlign(() => AlignClauseKeywords(sql), sql);
 
             return sql;
         }
@@ -1588,6 +1594,294 @@ namespace SqlFM.Core.Engine
                 end++;
 
             return trimmedLine.Substring(0, end).ToUpperInvariant();
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // P5: 子句关键字右对齐（基于 ScriptDom AST 解析）
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 基于 ScriptDom AST 解析，对 SELECT 语句的顶层子句关键字进行右对齐。
+        /// 
+        /// 算法：
+        /// 1. 用 TSql160Parser 将 SQL 解析为 AST + token 流
+        /// 2. 遍历所有 SelectStatement，提取顶层子句节点（SELECT/FROM/JOIN列表/WHERE/GROUP BY/HAVING/ORDER BY）
+        /// 3. 计算各子句关键字的文本长度，取 maxKeyLen = 最大值
+        /// 4. 对每个子句：前置空格 = maxKeyLen - 当前关键字长度
+        ///    输出：' ' * 前置空格 + 关键字 + ' ' + 子句第一行业务内容
+        /// 5. 多行列表（SELECT 字段列表、GROUP BY 字段列表等）后续行：
+        ///    前置空格 = maxKeyLen + 1，所有字段从此列统一起步
+        /// 
+        /// JOIN 系列（INNER/LEFT/RIGHT/CROSS/FULL OUTER JOIN）整串纳入对齐；
+        /// ON 条件继续留在 JOIN 同一行（由 PoorMans 的 JoinKeywordNewLine 控制）。
+        /// 仅处理顶层 SELECT 语句的子句，子查询内的同名关键字不受影响。
+        /// </summary>
+        /// <param name="sql">待处理的 SQL 文本（PoorMans 已格式化后的输出）</param>
+        /// <returns>子句关键字右对齐后的 SQL 文本</summary>
+        private string AlignClauseKeywords(string sql)
+        {
+            try
+            {
+                var parser = new TSql160Parser(initialQuotedIdentifiers: true);
+                IList<ParseError> parseErrors;
+                var fragment = parser.Parse(new StringReader(sql), out parseErrors);
+                if (parseErrors.Count > 0) return sql; // 解析失败则跳过
+
+                IList<TSqlParserToken> tokens;
+                IList<ParseError> tokenErrors;
+                tokens = parser.GetTokenStream(new StringReader(sql), out tokenErrors);
+                if (tokens == null || tokens.Count == 0) return sql;
+
+                var lines = sql.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+
+                // 用 AST 访问器提取所有顶层 SELECT 语句的子句信息
+                var extractor = new ClauseExtractor(tokens, lines);
+                fragment.Accept(extractor);
+
+                if (extractor.Statements.Count == 0) return sql;
+
+                // 对每个 SELECT 语句独立处理
+                foreach (var stmt in extractor.Statements)
+                {
+                    if (stmt.Clauses.Count < 2) continue; // 至少需要 2 个子句才有对齐意义
+
+                    // 计算最大关键字长度
+                    int maxKeyLen = 0;
+                    foreach (var c in stmt.Clauses)
+                        maxKeyLen = Math.Max(maxKeyLen, c.KeywordText.Length);
+                    if (maxKeyLen <= 0) continue;
+
+                    // 第一步：对每个子句关键字行做右对齐，并规范化关键字与内容之间仅保留一个空格间隔
+                    foreach (var c in stmt.Clauses)
+                    {
+                        if (c.LineIndex < 0 || c.LineIndex >= lines.Length) continue;
+                        string line = lines[c.LineIndex];
+                        int indent = line.Length - line.TrimStart().Length;
+                        int kwEnd = indent + c.KeywordText.Length;
+                        if (kwEnd > line.Length) continue;
+
+                        int pad = maxKeyLen - c.KeywordText.Length;
+                        if (pad < 0) pad = 0;
+
+                        // 跳过关键字后的原始空白，取真正的内容（列别名/表别名/排序字段等跟随部分），
+                        // 避免叠加 PoorMans 原有空白导致出现多个空格或制表符
+                        int contentStart = kwEnd;
+                        while (contentStart < line.Length && char.IsWhiteSpace(line[contentStart]))
+                            contentStart++;
+                        string content = contentStart < line.Length ? line.Substring(contentStart) : string.Empty;
+
+                        // 右对齐：pad 个空格用于对齐 + 1 个空格作为关键字与内容的分隔间隔
+                        lines[c.LineIndex] = line.Substring(0, kwEnd) + new string(' ', pad + 1) + content;
+                    }
+
+                    // 第二步：多行列表后续行统一缩进到 maxKeyLen + 1 列
+                    int contentIndent = maxKeyLen + 1;
+                    for (int ci = 0; ci < stmt.Clauses.Count; ci++)
+                    {
+                        var c = stmt.Clauses[ci];
+                        // 确定该子句内容区域的范围：从子句下一行到下一个子句行（或语句结束）
+                        int contentStart = c.LineIndex + 1;
+                        int contentEnd = (ci + 1 < stmt.Clauses.Count)
+                            ? stmt.Clauses[ci + 1].LineIndex   // 到下一个子句之前
+                            : stmt.EndLineIndex + 1;           // 到语句末尾
+
+                        for (int li = contentStart; li < contentEnd && li < lines.Length; li++)
+                        {
+                            string curLine = lines[li];
+                            if (string.IsNullOrWhiteSpace(curLine)) continue;
+                            string trimmed = curLine.TrimStart();
+                            // 跳过空行和注释行
+                            if (trimmed.Length == 0 || trimmed.StartsWith("--") || trimmed.StartsWith("/*"))
+                                continue;
+                            // 只调整比当前 contentIndent 缩进更深的行（即子句内容的续行）
+                            int curIndent = curLine.Length - trimmed.Length;
+                            if (curIndent > 0 && curIndent != contentIndent)
+                                lines[li] = new string(' ', contentIndent) + trimmed;
+                        }
+                    }
+                }
+
+                return string.Join(Environment.NewLine, lines);
+            }
+            catch
+            {
+                return sql; // 任何异常安全回退原文
+            }
+        }
+
+        /// <summary>
+        /// ScriptDom AST 访问器：从 SELECT 语句中精确提取顶层子句的位置信息。
+        /// 利用 token 流将 AST 节点的 FirstTokenIndex 映射到格式化输出的行号。
+        /// </summary>
+        private sealed class ClauseExtractor : TSqlFragmentVisitor
+        {
+            private readonly IList<TSqlParserToken> _tokens;
+            private readonly string[] _lines;
+
+            public readonly List<SelectClauseGroup> Statements = new List<SelectClauseGroup>();
+
+            public ClauseExtractor(IList<TSqlParserToken> tokens, string[] lines)
+            {
+                _tokens = tokens;
+                _lines = lines;
+            }
+
+            public override void Visit(SelectStatement node)
+            {
+                if (!(node.QueryExpression is QuerySpecification qs)) return;
+
+                var clauses = new List<ClauseInfo>();
+                int endLine = -1;
+
+                // SELECT
+                if (qs.SelectElements.Count > 0)
+                    clauses.Add(MakeClause("SELECT", qs.SelectElements[0]));
+
+                // FROM
+                if (qs.FromClause != null)
+                {
+                    clauses.Add(MakeClause("FROM", qs.FromClause));
+
+                    // JOIN 列表（遍历 TableReferences 找 QualifiedJoin）
+                    ExtractJoins(clauses, qs.FromClause.TableReferences);
+                }
+
+                // WHERE
+                if (qs.WhereClause != null)
+                    clauses.Add(MakeClause("WHERE", qs.WhereClause));
+
+                // GROUP BY
+                if (qs.GroupByClause != null)
+                    clauses.Add(MakeClause("GROUP BY", qs.GroupByClause));
+
+                // HAVING
+                if (qs.HavingClause != null)
+                    clauses.Add(MakeClause("HAVING", qs.HavingClause));
+
+                // ORDER BY（在 QuerySpecification 上）
+                if (qs.OrderByClause != null)
+                    clauses.Add(MakeClause("ORDER BY", qs.OrderByClause));
+
+                // 确定语句结束行（最后一个子句的 token 结束位置，或分号行）
+                if (clauses.Count > 0)
+                {
+                    var lastClause = clauses[clauses.Count - 1];
+                    TSqlFragment lastNode = GetLastNodeForClause(node, lastClause.KeywordText);
+                    endLine = TokenToLine(lastNode.LastTokenIndex);
+                    // 如果分号在更后面，扩展到分号
+                    for (int i = endLine + 1; i < _lines.Length; i++)
+                    {
+                        if (_lines[i].TrimStart().EndsWith(";"))
+                        {
+                            endLine = i;
+                            break;
+                        }
+                        if (_lines[i].Trim().Length > 0 && !IsContinuationLine(i))
+                            break; // 遇到非空非续行非分号，说明语句已结束
+                    }
+                }
+
+                if (clauses.Count >= 2)
+                    Statements.Add(new SelectClauseGroup { Clauses = clauses, EndLineIndex = endLine });
+            }
+
+            /// <summary>递归提取 FROM 子句中的 JOIN（处理嵌套 JOIN）。</summary>
+            private void ExtractJoins(List<ClauseInfo> clauses, IList<TableReference> refs)
+            {
+                if (refs == null) return;
+                foreach (var tr in refs)
+                {
+                    if (tr is QualifiedJoin qj)
+                    {
+                        string joinKw = JoinTypeToString(qj.QualifiedJoinType);
+                        clauses.Add(MakeClause(joinKw, qj));
+                        // 递归处理嵌套 JOIN（第二个操作数可能也是 QualifiedJoin）
+                        ExtractJoins(clauses, new[] { qj.SecondTableReference });
+                    }
+                }
+            }
+
+            /// <summary>将 QualifiedJoinType 枚举转为关键字文本。</summary>
+            private static string JoinTypeToString(QualifiedJoinType type)
+            {
+                switch (type)
+                {
+                    case QualifiedJoinType.Inner: return "INNER JOIN";
+                    case QualifiedJoinType.LeftOuter: return "LEFT JOIN";
+                    case QualifiedJoinType.RightOuter: return "RIGHT JOIN";
+                    case QualifiedJoinType.FullOuter: return "FULL OUTER JOIN";
+                    default: return "JOIN";
+                }
+            }
+
+            private ClauseInfo MakeClause(string keyword, TSqlFragment node)
+            {
+                return new ClauseInfo
+                {
+                    KeywordText = keyword,
+                    LineIndex = TokenToLine(node.FirstTokenIndex),
+                    TokenIndex = node.FirstTokenIndex
+                };
+            }
+
+            /// <summary>将 token 索引映射到行号。</summary>
+            private int TokenToLine(int tokenIndex)
+            {
+                if (tokenIndex < 0 || tokenIndex >= _tokens.Count) return -1;
+                var token = _tokens[tokenIndex];
+                // token 的 Line 属性是 1-based
+                return token.Line - 1; // 转为 0-based
+            }
+
+            /// <summary>根据关键字文本获取对应的 AST 节点（用于定位语句结束位置）。</summary>
+            private static TSqlFragment GetLastNodeForClause(SelectStatement stmt, string keyword)
+            {
+                var qs = stmt.QueryExpression as QuerySpecification;
+                if (keyword == "ORDER BY" && qs != null && qs.OrderByClause != null) return qs.OrderByClause;
+                if (qs == null) return stmt;
+                if (keyword == "HAVING" && qs.HavingClause != null) return qs.HavingClause;
+                if (keyword == "GROUP BY" && qs.GroupByClause != null) return qs.GroupByClause;
+                if (keyword == "WHERE" && qs.WhereClause != null) return qs.WhereClause;
+                if (keyword.Contains("JOIN") && qs.FromClause != null) return qs.FromClause;
+                if (keyword == "FROM" && qs.FromClause != null) return qs.FromClause;
+                if (qs.SelectElements.Count > 0) return qs.SelectElements[qs.SelectElements.Count - 1];
+                return stmt;
+            }
+
+            /// <summary>判断指定行是否为续行（缩进大于 0 且非空/注释/新子句开头）。</summary>
+            private bool IsContinuationLine(int lineIndex)
+            {
+                if (lineIndex < 0 || lineIndex >= _lines.Length) return false;
+                string t = _lines[lineIndex].TrimStart();
+                if (t.Length == 0) return false;
+                // 常见顶层关键字开头 → 不是续行
+                string upper = t.ToUpperInvariant();
+                if (upper.StartsWith("SELECT") && (t.Length <= 6 || !char.IsLetterOrDigit(t[6]))) return false;
+                if (upper.StartsWith("FROM") && (t.Length <= 4 || !char.IsLetterOrDigit(t[4]))) return false;
+                if (upper.StartsWith("WHERE") && (t.Length <= 5 || !char.IsLetterOrDigit(t[5]))) return false;
+                if (upper.StartsWith("INNER ") || upper.StartsWith("LEFT ")
+                    || upper.StartsWith("RIGHT ") || upper.StartsWith("CROSS ")
+                    || upper.StartsWith("FULL ")) return false;
+                if (upper.StartsWith("GROUP BY") || upper.StartsWith("ORDER BY")
+                    || upper.StartsWith("HAVING") || upper.StartsWith("UNION")
+                    || upper.StartsWith("EXCEPT") || upper.StartsWith("INTERSECT")) return false;
+                return true;
+            }
+        }
+
+        /// <summary>单个 SELECT 语句的所有子句信息及其结束行。</summary>
+        private sealed class SelectClauseGroup
+        {
+            public List<ClauseInfo> Clauses = null!;
+            public int EndLineIndex;
+        }
+
+        /// <summary>单个子句的关键字文本和在格式化输出中的行位置。</summary>
+        private sealed class ClauseInfo
+        {
+            public string KeywordText = null!;
+            public int LineIndex;
+            public int TokenIndex;
         }
     }
 }
