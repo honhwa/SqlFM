@@ -75,8 +75,17 @@ namespace SqlFM.Core.Engine
 
             try
             {
+                // Step 0: 前置保护 — 将 PROCEDURE 参数列表注释替换为占位符，避免 PoorMans 错位
+                var commentMap = new Dictionary<int, string>();
+                string protectedSql = SafeRefactor(() =>
+                {
+                    var r = ProcedureCommentProtector.Protect(sql, out var m);
+                    commentMap = m;
+                    return r;
+                }, sql);
+
                 // Step 1: 预处理 — 提取豁免区域
-                var (processedSql, regions) = _exemption.PreProcess(sql);
+                var (processedSql, regions) = _exemption.PreProcess(protectedSql);
 
                 // Step 2: 预重构 — 隐式 JOIN 转显式（在格式化前改变 SQL 结构）
                 string preProcessed = ApplyPreRefactoring(processedSql);
@@ -89,6 +98,9 @@ namespace SqlFM.Core.Engine
 
                 // Step 5: 恢复豁免区域
                 formatted = _exemption.PostProcess(formatted, regions);
+
+                // Step 5.5: 还原 PROCEDURE 参数注释（占位符 → 原注释）
+                formatted = ProcedureCommentProtector.Restore(formatted, commentMap);
 
                 // Step 6: 最终清理
                 formatted = FinalCleanup(formatted);
@@ -193,9 +205,6 @@ namespace SqlFM.Core.Engine
                 sql = RemoveExcessBlankLines(sql);
             }
 
-            // 修复 Poor Man's 对 ALTER/CREATE PROCEDURE 参数列表行内注释错位的缺陷
-            // （PoorMans 解析器会把参数后的行内注释错位到逗号之后；此处用 ScriptDom 重排归位）
-            sql = SafeRefactor(() => ProcedureParamFormatter.Fix(sql, _style), sql);
             if (g.TrimTrailingSpaces)
             {
                 sql = TrimTrailingWhitespace(sql);
