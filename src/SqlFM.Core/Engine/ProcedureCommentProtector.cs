@@ -71,7 +71,7 @@ namespace SqlFM.Core.Engine
                     var t = tokens[i];
                     if (InRange(i) &&
                         (t.TokenType == TSqlTokenType.SingleLineComment ||
-                         t.TokenType == TSqlTokenType.MultiLineComment))
+                         t.TokenType == TSqlTokenType.MultilineComment))
                     {
                         int key = counter++;
                         map[key] = t.Text;
