@@ -11,12 +11,12 @@
     <!-- ==================== 菜单定义 ==================== -->
 
     <Menus>
-      <!-- 顶级菜单 "SqlFM"，放在主菜单栏 -->
+      <!-- 顶级菜单 "SqlFM"，挂在"工具(T)"菜单下（SSMS 22.6 兼容） -->
       <Menu guid="guidSqlFMCmdSet"
             id="TopLevelMenu"
             priority="0x0100"
             type="Menu">
-        <Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS" />
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
         <Strings>
           <ButtonText>SqlFM</ButtonText>
           <CommandName>SqlFM</CommandName>
