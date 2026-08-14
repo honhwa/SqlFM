@@ -95,6 +95,13 @@ namespace SqlFM.Core.Configuration
         [XmlElement]
         public bool OrderBySortAlign { get; set; } = false;
 
+        /// <summary>子句关键字（SELECT/FROM/WHERE/JOIN 系列/GROUP BY/HAVING/ORDER BY）是否右对齐，
+        /// 以块内最长关键字（可能为 INNER JOIN / CROSS JOIN 等）右边缘为基准，使后续表达式统一列起步。
+        /// JOIN 系列整串纳入对齐（JOIN 词右边缘齐平），ON 是否换行由 JoinKeywordNewLine 控制。
+        /// 仅对包含 GROUP BY 或 ORDER BY 的语句生效，默认 false</summary>
+        [XmlElement]
+        public bool AlignClauseKeyword { get; set; } = false;
+
         /// <summary>窗口函数（OVER 子句）是否缩进展开，默认 true</summary>
         [XmlElement]
         public bool WindowFunctionIndent { get; set; } = true;
