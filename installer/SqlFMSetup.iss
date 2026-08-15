@@ -29,7 +29,6 @@ SolidCompression=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\uninstall_icon.ico
 UninstallDisplayName={#MyAppName}
 ; 安装向导外观
 WizardStyle=modern
@@ -64,6 +63,10 @@ Filename: "{code:GetVSIXInstallerPath}"; \
   Parameters: "/quiet /uninstall:{#MyExtensionId}"; \
   Flags: waituntilterminated; \
   RunOnceId: "UninstallVsix"
+
+[UninstallDelete]
+; 彻底移除用户级配置目录 %AppData%\SqlFM（自定义样式与设置），避免残留
+Type: filesandordirs; Name: "{userappdata}\SqlFM"
 
 [Code]
 // -------------------------------------------------------

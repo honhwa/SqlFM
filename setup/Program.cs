@@ -259,7 +259,7 @@ namespace SqlFM.Setup
             {
                 var tip = "SqlFM 已成功安装！\n\n请重启 SQL Server Management Studio 22 以使扩展生效。\n";
                 if (installMethod == "manual")
-                    tip += "（本次使用内置解压方式部署，若 SSMS 中未出现菜单，请运行 install\\find-vsixinstaller.ps1 定位 VSIXInstaller 后用 /vsixinstaller: 重装）\n";
+                    tip += "（本次使用内置解压方式部署，若 SSMS 中未出现菜单，请运行 installer\\find-vsixinstaller.ps1 定位 VSIXInstaller 后用 /vsixinstaller: 重装）\n";
                 tip += "在 SSMS 编辑器中右键菜单将出现“SqlFM 格式化”选项。";
                 Show(tip, MB_ICONINFORMATION);
             }
@@ -359,10 +359,15 @@ namespace SqlFM.Setup
             catch { }
 
             // 2) 直接删除记录的扩展目录（不依赖 VSIXInstaller）
+            //    若目录被 SSMS 占用（文件锁定），预约重启后删除，避免破坏正在运行的实例
             if (!string.IsNullOrEmpty(installLocation) && Directory.Exists(installLocation))
             {
                 try { Directory.Delete(installLocation, true); }
-                catch { /* 清理缓存后通常可删；失败则稍后重试 */ }
+                catch (IOException)
+                {
+                    try { ScheduleRebootDelete(installLocation); } catch { }
+                }
+                catch { /* 其他异常忽略 */ }
             }
 
             // 3) 清理 SSMS 扩展注册表缓存（privateregistry.bin 等），避免"未能加载包"报错
@@ -386,19 +391,35 @@ namespace SqlFM.Setup
             // 5) 兜底：全网搜索 SqlFM.pkgdef 残留并删除（应对早期手动安装、无记录的情况）
             RemoveOrphanExtensionDirs();
 
+            // 5.5) 删除用户级配置目录 %AppData%\SqlFM（自定义样式 *.sqlstyle 与 settings.xml）
+            //      避免卸载后残留冗余配置；仅删除 SqlFM 专属目录，不影响其他应用
+            RemoveUserConfig();
+
             // 6) 删除注册表卸载项（从"应用"列表移除）
             try { Registry.CurrentUser.DeleteSubKeyTree(RegKey, false); }
             catch { }
 
-            // 7) 清理持久化目录与自身（运行中文件预约重启后删除）
+            // 7) 清理持久化目录与自身（运行中文件预约重启后删除，避免文件锁定导致残留）
             try
             {
                 var appDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "Programs", "SqlFM");
                 var self = Assembly.GetExecutingAssembly().Location;
-                try { if (File.Exists(self)) MoveFileExW(self, null, MOVEFILE_DELAY_UNTIL_REBOOT); } catch { }
-                try { if (Directory.Exists(appDir)) Directory.Delete(appDir, true); } catch { }
+                try { if (File.Exists(self)) ScheduleRebootDelete(self); } catch { }
+                try
+                {
+                    if (Directory.Exists(appDir))
+                    {
+                        Directory.Delete(appDir, true);
+                    }
+                }
+                catch (IOException)
+                {
+                    // 目录被占用（本程序自身尚在运行），预约重启后移除以彻底清理
+                    try { ScheduleRebootDelete(appDir); } catch { }
+                }
+                catch { }
             }
             catch { }
 
@@ -416,7 +437,9 @@ namespace SqlFM.Setup
 
             foreach (var verDir in Directory.GetDirectories(ssmsRoot))
             {
-                // 删除 SqlFM 命名的残留文件/目录
+                // 仅删除 SqlFM 专属的残留文件/目录（按名称精确匹配），
+                // 绝不触碰 SSMS 自身的注册表缓存文件（privateregistry.bin 等），
+                // 以免破坏同一实例下的其他扩展组件
                 try
                 {
                     foreach (var f in Directory.GetFiles(verDir, "*SqlFM*", SearchOption.AllDirectories))
@@ -427,22 +450,6 @@ namespace SqlFM.Setup
                         SafeDeleteDir(d);
                 }
                 catch { }
-
-                // 备份并移除扩展缓存文件（SSMS 下次启动会自动重建）
-                foreach (var name in new[] { "privateregistry.bin", "ApplicationPrivateSettings", "ActivityLog.xml" })
-                {
-                    var p = Path.Combine(verDir, name);
-                    if (File.Exists(p))
-                    {
-                        try
-                        {
-                            var old = p + ".old";
-                            if (File.Exists(old)) File.Delete(old);
-                            File.Move(p, old);
-                        }
-                        catch { }
-                    }
-                }
             }
         }
 
@@ -479,6 +486,40 @@ namespace SqlFM.Setup
         private static void SafeDeleteDir(string path)
         {
             try { Directory.Delete(path, true); } catch { }
+        }
+
+        /// <summary>
+        /// 预约在系统下一次重启时删除/移走文件或目录，解决文件被占用
+        /// （如 SSMS 正在运行、本程序自身尚在运行）时无法立即删除的问题。
+        /// 文件：重启时直接删除；目录：重启时重命名到临时位置（移出原路径），避免残留。
+        /// </summary>
+        private static void ScheduleRebootDelete(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            if (Directory.Exists(path) && !File.Exists(path))
+            {
+                var tmp = path.TrimEnd('\\') + ".deleted_" + Guid.NewGuid().ToString("N");
+                MoveFileExW(path, tmp, MOVEFILE_DELAY_UNTIL_REBOOT);
+            }
+            else
+            {
+                MoveFileExW(path, null, MOVEFILE_DELAY_UNTIL_REBOOT);
+            }
+        }
+
+        /// <summary>
+        /// 删除用户级配置目录 %AppData%\SqlFM（自定义样式 *.sqlstyle 与 settings.xml）。
+        /// 仅删除 SqlFM 专属目录，不影响其他应用；被占用时预约重启删除。
+        /// </summary>
+        private static void RemoveUserConfig()
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SqlFM");
+            if (!Directory.Exists(dir)) return;
+            try { Directory.Delete(dir, true); }
+            catch (IOException) { try { ScheduleRebootDelete(dir); } catch { } }
+            catch { }
         }
     }
 }

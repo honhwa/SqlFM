@@ -13,6 +13,12 @@ $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SqlFM'
 
 function Log($msg) { if (-not $Quiet) { Write-Host $msg } }
 
+# Warn if SSMS is running (locked files cannot be removed)
+$ssmsRunning = Get-Process -Name 'Ssms' -ErrorAction SilentlyContinue
+if ($ssmsRunning -and -not $Quiet) {
+    Write-Host "WARNING: SSMS (Ssms.exe) is running. Close it before uninstall to avoid locked-file leftovers." -ForegroundColor Yellow
+}
+
 function Find-VsixInstaller {
     if ($VsixInstaller -and (Test-Path $VsixInstaller)) { return $VsixInstaller }
 
@@ -201,6 +207,13 @@ if ($removed) { Log "Extension folders cleaned." } else { Log "No SqlFM extensio
 if (Test-Path $localDir) {
     Remove-Item -Path $localDir -Recurse -Force -ErrorAction SilentlyContinue
     Log "Removed: $localDir"
+}
+
+# 4.5) Remove user roaming config (%AppData%\SqlFM: custom styles + settings.xml)
+$appDataDir = Join-Path $env:APPDATA 'SqlFM'
+if (Test-Path $appDataDir) {
+    Remove-Item -Path $appDataDir -Recurse -Force -ErrorAction SilentlyContinue
+    Log "Removed user config: $appDataDir"
 }
 
 # 5) Registry
