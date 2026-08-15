@@ -349,7 +349,20 @@ namespace SqlFM.Setup
         /// <summary>卸载：按注册表记录的目录精准删除，并清理 SSMS 缓存。</summary>
         private static bool DoUninstall(bool quiet, string explicitVsixInstaller)
         {
-            // 1) 读取安装时记录的扩展目录
+            // 0) 卸载前用户确认（仅交互模式；系统"应用"的卸载按钮以 /quiet 调用，已含系统级确认）
+            if (!quiet)
+            {
+                int r = MessageBoxW(IntPtr.Zero,
+                    "确定要卸载 SqlFM 吗？\n\n此操作将移除 SSMS 中的 SqlFM 扩展，并清理相关文件、注册表与配置。",
+                    AppName, 0x24); // MB_YESNO | MB_ICONQUESTION
+                if (r != 6) return true; // IDYES=6；用户取消则不做任何改动直接退出
+            }
+
+            // 1) 卸载前关闭正在运行的 SSMS，避免扩展文件被占用导致卸载不彻底
+            //    （仅关闭 SSMS 主进程，不触碰其他组件；优雅关闭超时后再强制结束）
+            CloseRunningSsms(quiet);
+
+            // 2) 读取安装时记录的扩展目录
             string installLocation = null;
             try
             {
@@ -422,6 +435,9 @@ namespace SqlFM.Setup
                 catch { }
             }
             catch { }
+
+            // 8) 防御性清理：移除可能存在的 SqlFM 快捷方式（桌面/开始菜单）
+            RemoveShortcuts();
 
             if (!quiet)
                 Show("SqlFM 已卸载。\n\n请重启 SQL Server Management Studio 22 以使更改生效。", MB_ICONINFORMATION);
@@ -520,6 +536,62 @@ namespace SqlFM.Setup
             try { Directory.Delete(dir, true); }
             catch (IOException) { try { ScheduleRebootDelete(dir); } catch { } }
             catch { }
+        }
+
+        /// <summary>卸载前关闭正在运行的 SSMS 进程，避免扩展文件被占用导致卸载不彻底。</summary>
+        private static void CloseRunningSsms(bool quiet)
+        {
+            Process[] procs;
+            try { procs = Process.GetProcessesByName("Ssms"); }
+            catch { return; }
+            foreach (var proc in procs)
+            {
+                try
+                {
+                    if (proc.HasExited) continue;
+                    // 优雅关闭：向主窗口发送 WM_CLOSE，等待其自行退出
+                    bool sent = proc.CloseMainWindow();
+                    if (sent && proc.WaitForExit(10000)) continue;
+                    // 无法优雅关闭或超时：
+                    //   静默模式（系统卸载）直接强制结束；交互模式先询问用户
+                    bool force = quiet;
+                    if (!quiet)
+                    {
+                        int r = MessageBoxW(IntPtr.Zero,
+                            "SQL Server Management Studio 仍在运行，可能导致 SqlFM 卸载不彻底。\n是否强制关闭 SSMS 以继续卸载？",
+                            AppName, 0x24); // MB_YESNO | MB_ICONQUESTION
+                        force = (r == 6); // IDYES
+                    }
+                    if (force)
+                    {
+                        proc.Kill();
+                        try { proc.WaitForExit(5000); } catch { }
+                    }
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>防御性清理：删除所有可能存在的 SqlFM 快捷方式（桌面/开始菜单）。</summary>
+        private static void RemoveShortcuts()
+        {
+            var dirs = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
+                Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu)
+            };
+            foreach (var dir in dirs)
+            {
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
+                try
+                {
+                    foreach (var f in Directory.GetFiles(dir, "*SqlFM*.lnk", SearchOption.AllDirectories))
+                        SafeDeleteFile(f);
+                }
+                catch { }
+            }
         }
     }
 }
