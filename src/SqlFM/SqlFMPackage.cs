@@ -255,7 +255,7 @@ namespace SqlFM
         #endregion
 
         /// <summary>
-        /// 诊断方法：枚举所有 Popup 类型的 CommandBar，将名称写入 SSMS 输出窗口。
+        /// 诊断方法：枚举所有 Popup 类型的 CommandBar，将名称和示例控件写入 SSMS 输出窗口。
         /// 用于确定 SSMS SQL 编辑器右键菜单的确切名称。
         /// </summary>
         private void LogAllContextMenus(EnvDTE80.DTE2 dte)
@@ -274,7 +274,19 @@ namespace SqlFM
                     {
                         if (bar.Type == Microsoft.VisualStudio.CommandBars.MsoBarType.msoBarTypePopup)
                         {
-                            sb.AppendLine($"  Name='{bar.Name}', Controls={bar.Controls.Count}");
+                            // 输出菜单名 + 控件数 + 前 3 个控件的 Caption（便于识别 SQL 编辑器菜单）
+                            var samples = new System.Collections.Generic.List<string>();
+                            int count = Math.Min(3, bar.Controls.Count);
+                            for (int i = 1; i <= count; i++)
+                            {
+                                try
+                                {
+                                    var ctl = bar.Controls[i];
+                                    samples.Add(ctl.Caption?.Replace("\t", " | ") ?? "(null)");
+                                }
+                                catch { samples.Add("(err)"); }
+                            }
+                            sb.AppendLine($"  Name='{bar.Name}', Controls={bar.Controls.Count}, Samples=[{string.Join(", ", samples)}]");
                         }
                     }
                     catch { }
@@ -304,6 +316,11 @@ namespace SqlFM
         /// 尝试将格式化命令注入到 SSMS SQL 编辑器的右键上下文菜单。
         /// 由于 SSMS 使用专有菜单（非 VS 标准的 Code Window），
         /// 需要通过 DTE CommandBars 动态添加菜单项。
+        /// 
+        /// 匹配策略（三级降级）：
+        /// 1. 精确匹配已知 SSMS 各版本的 CommandBar 名称
+        /// 2. 模糊匹配（名称包含 "SQL" 或 "Query" 或 "Script" 的 Popup 菜单）
+        /// 3. 内容特征匹配（菜单项含"执行"/"查询设计器"等 SSMS 特有项）
         /// </summary>
         private void AddToContextMenu(EnvDTE80.DTE2 dte)
         {
@@ -311,36 +328,128 @@ namespace SqlFM
 
             var commandBars = (Microsoft.VisualStudio.CommandBars.CommandBars)dte.CommandBars;
 
-            // SSMS SQL 编辑器上下文菜单可能的名称
-            string[] possibleMenuNames = new[]
+            // ===== 第一级：精确匹配已知 SSMS 版本的 CommandBar 名称 =====
+            string[] exactNames = new[]
             {
-                "SQL Files Editor Context",  // SSMS 常用名
-                "Code Window",               // VS 标准名
-                "Script Context",            // 另一个可能的名称
-                "SQLEditor Context",         // 可能的变体
+                "SQL Editor Context",          // SSMS 18-20 最常见
+                "SQL Files Editor Context",    // VS 标准文件类型上下文
+                "Code Window",                 // VS 标准代码窗口
+                "Script Context",              // 脚本编辑器
+                "SQLEditor Context",           // 变体
+                "SQL Query Editor Context",   // 另一常见名
+                "T-SQL Editor",                // T-SQL 专用
+                "Query Editor Context",        // 查询编辑器
+                "SQL Query Editor",            // 简化版
             };
 
             Microsoft.VisualStudio.CommandBars.CommandBar? contextMenu = null;
+            string? matchedName = null;
 
-            foreach (var menuName in possibleMenuNames)
+            foreach (var menuName in exactNames)
             {
                 try
                 {
-                    contextMenu = commandBars[menuName];
-                    if (contextMenu != null)
+                    var bar = commandBars[menuName];
+                    if (bar != null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[SqlFM] 找到上下文菜单: '{menuName}'");
+                        contextMenu = bar;
+                        matchedName = menuName;
+                        System.Diagnostics.Debug.WriteLine($"[SqlFM] 右键菜单精确匹配: '{menuName}' (Controls={bar.Controls.Count})");
                         break;
                     }
                 }
                 catch { continue; }
             }
 
+            // ===== 第二级：模糊匹配 —— 名称含 SQL/Query/Script 关键字的 Popup 菜单 =====
             if (contextMenu == null)
             {
-                System.Diagnostics.Debug.WriteLine("[SqlFM] 未找到已知的上下文菜单名称，请查看输出窗口中的 CommandBar 列表");
+                foreach (Microsoft.VisualStudio.CommandBars.CommandBar bar in commandBars)
+                {
+                    try
+                    {
+                        if (bar.Type == Microsoft.VisualStudio.CommandBars.MsoBarType.msoBarTypePopup)
+                        {
+                            string name = (bar.Name ?? "").ToUpperInvariant();
+                            if (name.Contains("SQL") || name.Contains("QUERY") || name.Contains("SCRIPT") || name.Contains("TSQL"))
+                            {
+                                contextMenu = bar;
+                                matchedName = bar.Name;
+                                System.Diagnostics.Debug.WriteLine($"[SqlFM] 右键菜单模糊匹配: '{bar.Name}' (Controls={bar.Controls.Count})");
+                                break;
+                            }
+                        }
+                    }
+                    catch { continue; }
+                }
+            }
+
+            // ===== 第三级：内容特征匹配 —— 找包含典型 SSMS 菜单项的 Popup 菜单 =====
+            if (contextMenu == null)
+            {
+                // SSMS SQL 编辑器右键菜单通常包含这些特征项（中英文）
+                string[] signatureCaptions = new[]
+                {
+                    "执行",       // 中文: 执行(X)
+                    "Execute",    // 英文: Execute
+                    "查询设计器", // 中文: 在查询设计器中编辑(Q)
+                    "Design",     // 英文: Design Query in Editor
+                    "结果",       // 中文: 结果(R) → 将结果保存到...
+                    "Results",    // 英文: Results
+                    "更改",       // 中文: 更改 → 连接/断开连接
+                    "连接",       // 中文: 连接(C)
+                    "Connection", // 英文: Connection
+                    "分析",       // 中文: 在数据库引擎优化顾问中分析(A)
+                    "Analyze",    // 英文: Analyze
+                };
+
+                foreach (Microsoft.VisualStudio.CommandBars.CommandBar bar in commandBars)
+                {
+                    try
+                    {
+                        if (bar.Type != Microsoft.VisualStudio.CommandBars.MsoBarType.msoBarTypePopup)
+                            continue;
+                        if (bar.Controls.Count < 5) // SSMS 右键菜单通常有 20+ 项，跳过太小的
+                            continue;
+
+                        int matchCount = 0;
+                        foreach (Microsoft.VisualStudio.CommandBars.CommandBarControl ctl in bar.Controls)
+                        {
+                            try
+                            {
+                                string cap = (ctl.Caption ?? "");
+                                foreach (var sig in signatureCaptions)
+                                {
+                                    if (cap.Contains(sig))
+                                    {
+                                        matchCount++;
+                                        break;
+                                    }
+                                }
+                            }
+                            catch { continue; }
+                        }
+
+                        // 命中 2 个以上特征项就认为是 SQL 编辑器右键菜单
+                        if (matchCount >= 2)
+                        {
+                            contextMenu = bar;
+                            matchedName = bar.Name + $"(特征匹配,命中{matchCount}项)";
+                            System.Diagnostics.Debug.WriteLine($"[SqlFM] 右键菜单特征匹配: '{bar.Name}' (Controls={bar.Controls.Count}, 命中={matchCount})");
+                            break;
+                        }
+                    }
+                    catch { continue; }
+                }
+            }
+
+            if (contextMenu == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[SqlFM] 未找到 SQL 编辑器右键菜单（已尝试精确/模糊/特征三种匹配），请查看输出窗口中的 CommandBar 列表");
                 return;
             }
+
+            System.Diagnostics.Debug.WriteLine($"[SqlFM] 最终使用右键菜单: '{matchedName}', 控件数={contextMenu.Controls.Count}");
 
             // 查找插入位置：在"粘贴"之后、"插入片段"之前
             // Before 参数为 1-based 索引，表示在第 N 个控件之前插入
@@ -378,7 +487,7 @@ namespace SqlFM
             _formatSelectedButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition, true);
-            _formatSelectedButton.Caption = Localizer.Get("CmdFormatSelected");
+            _formatSelectedButton.Caption = Localizer.Get("CmdFormatSelected") + "\tCtrl+K, Ctrl+F";
             _formatSelectedButton.BeginGroup = true;
             _formatSelectedButton.Click += FormatSelectedButton_Click;
 
@@ -386,28 +495,28 @@ namespace SqlFM
             _formatAllButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 1, true);
-            _formatAllButton.Caption = Localizer.Get("CmdFormatAll");
+            _formatAllButton.Caption = Localizer.Get("CmdFormatAll") + "\tCtrl+K, Ctrl+D";
             _formatAllButton.Click += FormatAllButton_Click;
 
             // 添加 "关键字大写"
             _caseUpperButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 2, true);
-            _caseUpperButton.Caption = Localizer.Get("CmdCaseUpper");
+            _caseUpperButton.Caption = Localizer.Get("CmdCaseUpper") + "\tCtrl+B, Ctrl+U";
             _caseUpperButton.Click += CaseUpperButton_Click;
 
             // 添加 "关键字小写"
             _caseLowerButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 3, true);
-            _caseLowerButton.Caption = Localizer.Get("CmdCaseLower");
+            _caseLowerButton.Caption = Localizer.Get("CmdCaseLower") + "\tCtrl+B, Ctrl+L";
             _caseLowerButton.Click += CaseLowerButton_Click;
 
             // 添加 "插入豁免标记"
             _insertExemptionButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
                 Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
                 Type.Missing, Type.Missing, insertPosition + 4, true);
-            _insertExemptionButton.Caption = Localizer.Get("CmdInsertExemption");
+            _insertExemptionButton.Caption = Localizer.Get("CmdInsertExemption") + "\tCtrl+D, Ctrl+I";
             _insertExemptionButton.Click += InsertExemptionButton_Click;
 
             // 添加 "Lint 检查"
