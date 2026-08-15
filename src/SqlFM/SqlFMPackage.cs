@@ -42,6 +42,9 @@ namespace SqlFM
         private Microsoft.VisualStudio.CommandBars.CommandBarButton? _caseUpperButton;
         private Microsoft.VisualStudio.CommandBars.CommandBarButton? _caseLowerButton;
         private Microsoft.VisualStudio.CommandBars.CommandBarButton? _insertExemptionButton;
+        private Microsoft.VisualStudio.CommandBars.CommandBarButton? _lintButton;
+        private Microsoft.VisualStudio.CommandBars.CommandBarButton? _expandStarButton;
+        private Microsoft.VisualStudio.CommandBars.CommandBarButton? _formatFolderButton;
 
         /// <summary>
         /// Running Document Table 的 Cookie，用于取消订阅。
@@ -89,6 +92,15 @@ namespace SqlFM
 
             // 注册插入豁免标记命令
             await InsertExemptionCommand.InitializeAsync(this);
+
+            // 注册 Lint 检查命令
+            await LintCommand.InitializeAsync(this);
+
+            // 注册展开 SELECT * 命令
+            await ExpandStarCommand.InitializeAsync(this);
+
+            // 注册格式化文件夹命令
+            await FormatFolderCommand.InitializeAsync(this);
 
             // 从持久化存储加载默认样式到 FormatService
             try
@@ -397,6 +409,27 @@ namespace SqlFM
                 Type.Missing, Type.Missing, insertPosition + 4, true);
             _insertExemptionButton.Caption = Localizer.Get("CmdInsertExemption");
             _insertExemptionButton.Click += InsertExemptionButton_Click;
+
+            // 添加 "Lint 检查"
+            _lintButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
+                Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
+                Type.Missing, Type.Missing, insertPosition + 5, true);
+            _lintButton.Caption = Localizer.Get("CmdLint");
+            _lintButton.Click += LintButton_Click;
+
+            // 添加 "展开 SELECT *"
+            _expandStarButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
+                Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
+                Type.Missing, Type.Missing, insertPosition + 6, true);
+            _expandStarButton.Caption = Localizer.Get("CmdExpandStar");
+            _expandStarButton.Click += ExpandStarButton_Click;
+
+            // 添加 "格式化文件夹"
+            _formatFolderButton = (Microsoft.VisualStudio.CommandBars.CommandBarButton)contextMenu.Controls.Add(
+                Microsoft.VisualStudio.CommandBars.MsoControlType.msoControlButton,
+                Type.Missing, Type.Missing, insertPosition + 7, true);
+            _formatFolderButton.Caption = Localizer.Get("CmdFormatFolder");
+            _formatFolderButton.Click += FormatFolderButton_Click;
         }
 
         private void FormatSelectedButton_Click(Microsoft.VisualStudio.CommandBars.CommandBarButton ctrl, ref bool cancelDefault)
@@ -422,6 +455,21 @@ namespace SqlFM
         private void InsertExemptionButton_Click(Microsoft.VisualStudio.CommandBars.CommandBarButton ctrl, ref bool cancelDefault)
         {
             InsertExemptionCommand.ExecuteInsertExemption();
+        }
+
+        private void LintButton_Click(Microsoft.VisualStudio.CommandBars.CommandBarButton ctrl, ref bool cancelDefault)
+        {
+            LintCommand.ExecuteLint();
+        }
+
+        private void ExpandStarButton_Click(Microsoft.VisualStudio.CommandBars.CommandBarButton ctrl, ref bool cancelDefault)
+        {
+            ExpandStarCommand.ExecuteExpand();
+        }
+
+        private void FormatFolderButton_Click(Microsoft.VisualStudio.CommandBars.CommandBarButton ctrl, ref bool cancelDefault)
+        {
+            FormatFolderCommand.ExecuteFormatFolder();
         }
     }
 }

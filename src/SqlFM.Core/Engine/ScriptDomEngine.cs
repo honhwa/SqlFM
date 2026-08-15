@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
@@ -32,19 +33,56 @@ namespace SqlFM.Core.Engine
             }
         }
 
+        // ── 解析结果缓存（性能优化）──
+        // ScriptDom 解析是管线中最昂贵的操作，且同一段 SQL 在大小写/对齐/对象名提取等多处被重复解析。
+        // TSqlFragment 为不可变只读结构（访问者仅遍历、不修改），按原文缓存安全且可显著提速。
+        // 采用有界 FIFO 缓存，避免大批量处理时无限增长内存。
+        private const int ParseCacheCapacity = 256;
+        private static readonly object _cacheLock = new object();
+        private static readonly Dictionary<string, TSqlFragment> _parseCache =
+            new Dictionary<string, TSqlFragment>(StringComparer.Ordinal);
+        private static readonly Queue<string> _parseCacheKeys = new Queue<string>();
+
         /// <summary>
-        /// 解析 SQL 获取 AST（抽象语法树）。
+        /// 解析 SQL 获取 AST（抽象语法树）。结果按原文缓存（有界 FIFO），重复解析直接命中缓存。
         /// </summary>
         /// <param name="sql">待解析的 SQL 文本</param>
         /// <returns>TSqlFragment AST 根节点；解析失败返回 null</returns>
-        public TSqlFragment Parse(string sql)
+        public TSqlFragment? Parse(string sql)
         {
+            if (string.IsNullOrEmpty(sql))
+            {
+                using (var reader = new StringReader(sql))
+                    return _parser.Parse(reader, out _);
+            }
+
+            lock (_cacheLock)
+            {
+                if (_parseCache.TryGetValue(sql, out var cached))
+                    return cached;
+            }
+
+            TSqlFragment fragment;
             using (var reader = new StringReader(sql))
             {
-                IList<ParseError> errors;
-                var fragment = _parser.Parse(reader, out errors);
-                return fragment;
+                fragment = _parser.Parse(reader, out _);
             }
+
+            if (fragment != null)
+            {
+                lock (_cacheLock)
+                {
+                    if (_parseCache.Count >= ParseCacheCapacity)
+                    {
+                        while (_parseCacheKeys.Count > 0 && _parseCache.Count >= ParseCacheCapacity)
+                            _parseCache.Remove(_parseCacheKeys.Dequeue());
+                    }
+                    _parseCache[sql] = fragment;
+                    _parseCacheKeys.Enqueue(sql);
+                }
+            }
+
+            return fragment;
         }
 
         /// <summary>

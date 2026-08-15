@@ -32,6 +32,8 @@ namespace SqlFM.Core.Engine
         private readonly AlignmentPostProcessor _alignmentProcessor;
         // T-SQL 标识符名称格式化器（临时表/表变量）
         private readonly TsqlNameFormatter _nameFormatter;
+        // 受限功能后处理器（补齐 PoorMans 不支持的格式化选项）
+        private readonly LimitedFeaturePostProcessor _limitedFeatureProcessor;
         // 当前加载的格式化样式
         private SqlFormatStyle _style;
 
@@ -49,6 +51,7 @@ namespace SqlFM.Core.Engine
             _casePostProcessor = new CasePostProcessor();
             _alignmentProcessor = new AlignmentPostProcessor();
             _nameFormatter = new TsqlNameFormatter();
+            _limitedFeatureProcessor = new LimitedFeaturePostProcessor();
             _style = new SqlFormatStyle();
         }
 
@@ -264,6 +267,11 @@ namespace SqlFM.Core.Engine
 
             // 对齐后处理器统一执行所有对齐操作（运算符/VALUES/SET/AS/别名/注释/块注释）
             sql = SafeRefactor(() => _alignmentProcessor.Process(sql, _style), sql);
+
+            // ── 受限功能补齐 ──
+            // 补齐 PoorMans 不直接支持的选项（如 LogicOperatorBefore / IfElseBlankSplit），
+            // 各项由其配置开关独立门控（默认关闭），接入不改变现有默认行为。
+            sql = SafeRefactor(() => _limitedFeatureProcessor.Process(sql, _style), sql);
 
             return sql;
         }

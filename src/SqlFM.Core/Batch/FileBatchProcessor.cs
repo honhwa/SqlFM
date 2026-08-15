@@ -30,13 +30,15 @@ namespace SqlFM.Core.Batch
         /// <param name="outputDirectory">输出目录（null 则覆盖原文件）</param>
         /// <param name="recursive">是否递归子目录</param>
         /// <param name="progress">进度回调(当前文件索引, 总数, 文件路径)</param>
+        /// <param name="checkOnly">仅为检查模式（不落盘写回，ModifiedFiles 表示「会被改写」的数量）</param>
         /// <returns>处理结果摘要</returns>
         public BatchResult ProcessDirectory(
             string directoryPath,
             Encoding encoding,
             string? outputDirectory = null,
             bool recursive = true,
-            Action<int, int, string>? progress = null)
+            Action<int, int, string>? progress = null,
+            bool checkOnly = false)
         {
             var result = new BatchResult();
             var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
@@ -55,22 +57,29 @@ namespace SqlFM.Core.Batch
 
                     if (formatResult.Success)
                     {
-                        var outputPath = outputDirectory != null
-                            ? Path.Combine(outputDirectory, GetRelativePath(directoryPath, filePath))
-                            : filePath;
-
-                        if (outputDirectory != null)
-                        {
-                            var dir = Path.GetDirectoryName(outputPath);
-                            if (dir != null && !Directory.Exists(dir))
-                                Directory.CreateDirectory(dir);
-                        }
-
-                        File.WriteAllText(outputPath, formatResult.FormattedSql, encoding);
                         result.SuccessFiles++;
 
                         if (content != formatResult.FormattedSql)
+                        {
                             result.ModifiedFiles++;
+
+                            // 检查模式仅统计会被改写的文件，不落盘写回
+                            if (!checkOnly)
+                            {
+                                var outputPath = outputDirectory != null
+                                    ? Path.Combine(outputDirectory, GetRelativePath(directoryPath, filePath))
+                                    : filePath;
+
+                                if (outputDirectory != null)
+                                {
+                                    var dir = Path.GetDirectoryName(outputPath);
+                                    if (dir != null && !Directory.Exists(dir))
+                                        Directory.CreateDirectory(dir);
+                                }
+
+                                File.WriteAllText(outputPath, formatResult.FormattedSql, encoding);
+                            }
+                        }
                     }
                     else
                     {

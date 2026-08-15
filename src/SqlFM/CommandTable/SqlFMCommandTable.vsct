@@ -138,6 +138,42 @@
         </Strings>
       </Button>
 
+      <!-- Lint 检查 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="LintCmdId"
+              priority="0x0700"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>Lint 检查</ButtonText>
+          <CommandName>Lint</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 展开 SELECT * -->
+      <Button guid="guidSqlFMCmdSet"
+              id="ExpandStarCmdId"
+              priority="0x0800"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>展开 SELECT *</ButtonText>
+          <CommandName>ExpandStar</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- 格式化文件夹 -->
+      <Button guid="guidSqlFMCmdSet"
+              id="FormatFolderCmdId"
+              priority="0x0900"
+              type="Button">
+        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Strings>
+          <ButtonText>格式化文件夹</ButtonText>
+          <CommandName>FormatFolder</CommandName>
+        </Strings>
+      </Button>
+
     </Buttons>
 
   </Commands>
@@ -211,6 +247,27 @@
       <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
     </CommandPlacement>
 
+    <!-- ContextMenuGroup：Lint 检查 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="LintCmdId"
+                      priority="0x0700">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：展开 SELECT * -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="ExpandStarCmdId"
+                      priority="0x0800">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
+    <!-- ContextMenuGroup：格式化文件夹 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatFolderCmdId"
+                      priority="0x0900">
+      <Parent guid="guidSqlFMCmdSet" id="ContextMenuGroup" />
+    </CommandPlacement>
+
     <!-- ToolbarGroup：格式化选中 SQL -->
     <CommandPlacement guid="guidSqlFMCmdSet"
                       id="FormatSelectedCmdId"
@@ -229,6 +286,27 @@
     <CommandPlacement guid="guidSqlFMCmdSet"
                       id="FormatOptionsCmdId"
                       priority="0x0300">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：Lint 检查 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="LintCmdId"
+                      priority="0x0400">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：展开 SELECT * -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="ExpandStarCmdId"
+                      priority="0x0500">
+      <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
+    </CommandPlacement>
+
+    <!-- ToolbarGroup：格式化文件夹 -->
+    <CommandPlacement guid="guidSqlFMCmdSet"
+                      id="FormatFolderCmdId"
+                      priority="0x0600">
       <Parent guid="guidSqlFMCmdSet" id="ToolbarGroup" />
     </CommandPlacement>
   </CommandPlacements>
@@ -251,6 +329,9 @@
       <IDSymbol name="CaseUpperCmdId"       value="0x0103" />
       <IDSymbol name="CaseLowerCmdId"       value="0x0104" />
       <IDSymbol name="InsertExemptionCmdId" value="0x0105" />
+      <IDSymbol name="LintCmdId"        value="0x0106" />
+      <IDSymbol name="ExpandStarCmdId"  value="0x0107" />
+      <IDSymbol name="FormatFolderCmdId" value="0x0108" />
 
       <!-- 菜单 ID -->
       <IDSymbol name="TopLevelMenu"  value="0x1001" />

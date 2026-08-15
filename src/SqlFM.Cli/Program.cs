@@ -1,9 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
+using SqlFM.Core.Batch;
 using SqlFM.Core.Configuration;
+using SqlFM.Core.Dialects;
 using SqlFM.Core.Engine;
+using SqlFM.Core.Exemption;
+using SqlFM.Core.Lint;
 using SqlFM.Core.PresetStyles;
+using SqlFM.Core.Refactoring;
 
 namespace SqlFM.Cli
 {
@@ -49,14 +56,6 @@ namespace SqlFM.Cli
                 return 0;
             }
 
-            if (string.IsNullOrEmpty(options.FilePath))
-            {
-                Console.Error.WriteLine("Error: --file (-f) is required.");
-                Console.Error.WriteLine();
-                PrintHelp();
-                return 3;
-            }
-
             // 加载样式
             SqlFormatStyle style;
             try
@@ -92,6 +91,62 @@ namespace SqlFM.Cli
             // 初始化管道
             var pipeline = new FormatterPipeline();
             pipeline.LoadStyle(style);
+
+            // ── 配置导出 ──
+            if (!string.IsNullOrEmpty(options.ExportPath))
+            {
+                try
+                {
+                    StyleSerializer.SaveToFile(style, options.ExportPath!);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Error: export failed: " + ex.Message);
+                    return 4;
+                }
+                Console.WriteLine("exported style '" + style.Name + "' to " + options.ExportPath);
+                return 0;
+            }
+
+            // ── 配置导入 / 校验 ──
+            if (!string.IsNullOrEmpty(options.ImportPath))
+            {
+                try
+                {
+                    var imported = StyleSerializer.LoadFromFile(options.ImportPath!);
+                    Console.WriteLine("imported style '" + imported.Name + "' from " + options.ImportPath);
+                    style = imported;
+                    pipeline.LoadStyle(style);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Error: import failed: " + ex.Message);
+                    return 4;
+                }
+                if (string.IsNullOrEmpty(options.FilePath))
+                    return 0; // 仅校验导入的样式文件
+            }
+
+            // ── Lint 检查模式 ──
+            if (options.Lint)
+                return RunLint(pipeline, options, style);
+
+            // ── SELECT * 展开 ──
+            if (options.ExpandStar)
+                return RunExpand(options, style);
+
+            // ── 数据库对象批量检查（只读，不执行 ALTER）──
+            if (!string.IsNullOrEmpty(options.DbConnection) && !options.ExpandStar)
+                return RunDbCheck(options, pipeline);
+
+            // 格式化模式需要目标文件或目录（Lint/Expand/导出等模式已在上方处理）
+            if (string.IsNullOrEmpty(options.FilePath))
+            {
+                Console.Error.WriteLine("Error: --file (-f) is required.");
+                Console.Error.WriteLine();
+                PrintHelp();
+                return 3;
+            }
 
             // 判断是文件还是目录
             if (File.Exists(options.FilePath))
@@ -191,7 +246,8 @@ namespace SqlFM.Cli
         }
 
         /// <summary>
-        /// 批量处理目录下所有 .sql 文件：扫描 → 逐文件格式化 → 输出汇总。
+        /// 批量处理目录下所有 .sql 文件：委托统一的 <see cref="FileBatchProcessor"/> 执行扫描与格式化，
+        /// 再将其结果映射为与旧实现一致的控制台汇总与退出码。
         /// 支持 --check 检查模式和 --recursive 递归子目录。
         /// </summary>
         /// <param name="pipeline">格式化管道实例</param>
@@ -199,12 +255,18 @@ namespace SqlFM.Cli
         /// <returns>退出码（0=全部无需修改, 1=有文件被格式化/需格式化, 2=部分失败）</returns>
         static int ProcessDirectory(FormatterPipeline pipeline, CliOptions options)
         {
-            var searchOption = options.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-            string[] sqlFiles;
+            var processor = new FileBatchProcessor(pipeline);
 
+            BatchResult result;
             try
             {
-                sqlFiles = Directory.GetFiles(options.FilePath, "*.sql", searchOption);
+                result = processor.ProcessDirectory(
+                    options.FilePath!,
+                    options.GetEncoding(),
+                    options.OutputPath,
+                    options.Recursive,
+                    (i, n, file) => Console.Write("\r[{0}/{1}] Processing... ", i, n),
+                    options.CheckOnly);
             }
             catch (Exception ex)
             {
@@ -212,127 +274,204 @@ namespace SqlFM.Cli
                 return 4;
             }
 
-            if (sqlFiles.Length == 0)
+            // 清除进度行
+            Console.Write("\r" + new string(' ', 60) + "\r");
+
+            if (result.TotalFiles == 0)
             {
                 Console.WriteLine("No .sql files found in: " + options.FilePath);
                 return 0;
             }
 
-            var encoding = options.GetEncoding();
-            int totalFiles = sqlFiles.Length;
-            int formattedCount = 0;
-            int unchangedCount = 0;
-            int failedCount = 0;
-            int needsFormatCount = 0;
-
-            for (int i = 0; i < sqlFiles.Length; i++)
-            {
-                string filePath = sqlFiles[i];
-
-                // 进度显示
-                Console.Write("\r[{0}/{1}] Processing... ", i + 1, totalFiles);
-
-                string originalSql;
-                try
-                {
-                    originalSql = File.ReadAllText(filePath, encoding);
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine();
-                    Console.Error.WriteLine("Error: Failed to read file " + filePath + ": " + ex.Message);
-                    failedCount++;
-                    continue;
-                }
-
-                var result = pipeline.Format(originalSql);
-
-                if (!result.Success)
-                {
-                    Console.Error.WriteLine();
-                    Console.Error.WriteLine("Error: Failed to format " + filePath + ": " + result.ErrorMessage);
-                    failedCount++;
-                    continue;
-                }
-
-                bool changed = !string.Equals(originalSql, result.FormattedSql, StringComparison.Ordinal);
-
-                if (options.CheckOnly)
-                {
-                    if (changed)
-                    {
-                        needsFormatCount++;
-                        if (options.Verbose)
-                        {
-                            Console.WriteLine();
-                            Console.WriteLine("needs formatting: " + filePath);
-                        }
-                    }
-                    else
-                    {
-                        unchangedCount++;
-                    }
-                }
-                else
-                {
-                    if (changed)
-                    {
-                        string outputPath = GetOutputPath(filePath!, options.OutputPath, options.FilePath);
-                        try
-                        {
-                            EnsureDirectoryExists(outputPath);
-                            File.WriteAllText(outputPath, result.FormattedSql, encoding);
-                            formattedCount++;
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine();
-                            Console.Error.WriteLine("Error: Failed to write file " + filePath + ": " + ex.Message);
-                            failedCount++;
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        unchangedCount++;
-                    }
-                }
-            }
-
-            // 清除进度行
-            Console.Write("\r" + new string(' ', 60) + "\r");
-
-            // 输出汇总
+            // 输出汇总（与旧实现格式保持一致）
             Console.WriteLine();
             Console.WriteLine("Summary:");
-            Console.WriteLine("  Total:       " + totalFiles);
+            Console.WriteLine("  Total:       " + result.TotalFiles);
+
+            int unchanged = result.SuccessFiles - result.ModifiedFiles;
 
             if (options.CheckOnly)
             {
-                Console.WriteLine("  Needs format: " + needsFormatCount);
-                Console.WriteLine("  OK:          " + unchangedCount);
-                if (failedCount > 0)
-                    Console.WriteLine("  Failed:      " + failedCount);
+                Console.WriteLine("  Needs format: " + result.ModifiedFiles);
+                Console.WriteLine("  OK:          " + unchanged);
+                if (result.FailedFiles.Count > 0)
+                    Console.WriteLine("  Failed:      " + result.FailedFiles.Count);
 
-                if (failedCount > 0)
+                if (result.FailedFiles.Count > 0)
                     return 2;
-                if (needsFormatCount > 0)
+                if (result.ModifiedFiles > 0)
                     return 1;
                 return 0;
             }
             else
             {
-                Console.WriteLine("  Formatted:   " + formattedCount);
-                Console.WriteLine("  Unchanged:   " + unchangedCount);
-                if (failedCount > 0)
-                    Console.WriteLine("  Failed:      " + failedCount);
+                Console.WriteLine("  Formatted:   " + result.ModifiedFiles);
+                Console.WriteLine("  Unchanged:   " + unchanged);
+                if (result.FailedFiles.Count > 0)
+                    Console.WriteLine("  Failed:      " + result.FailedFiles.Count);
 
-                if (failedCount > 0)
+                if (result.FailedFiles.Count > 0)
                     return 2;
-                if (formattedCount > 0)
+                if (result.ModifiedFiles > 0)
                     return 1;
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// 执行 Lint 检查（单文件或目录），逐文件输出违规并汇总。
+        /// 退出码：0=无违规，1=存在违规，3=参数错误，4=路径不存在。
+        /// </summary>
+        static int RunLint(FormatterPipeline pipeline, CliOptions options, SqlFormatStyle style)
+        {
+            if (string.IsNullOrEmpty(options.FilePath))
+            {
+                Console.Error.WriteLine("Error: --file (-f) is required for --lint.");
+                return 3;
+            }
+
+            var engine = LintRuleCatalog.DefaultEngine;
+            var exemption = new ExemptionProcessor();
+            var dialect = TsqlDialect.Instance;
+            var encoding = options.GetEncoding();
+            var enable = SplitRules(options.EnableRules);
+            var disable = SplitRules(options.DisableRules);
+            int violationCount = 0;
+
+            if (File.Exists(options.FilePath))
+            {
+                violationCount += LintFile(engine, exemption, dialect, style, options.FilePath!, encoding, enable, disable);
+            }
+            else if (Directory.Exists(options.FilePath))
+            {
+                var search = options.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                foreach (var file in Directory.GetFiles(options.FilePath, "*.sql", search))
+                {
+                    violationCount += LintFile(engine, exemption, dialect, style, file, encoding, enable, disable);
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine("Error: Path not found: " + options.FilePath);
+                return 4;
+            }
+
+            Console.WriteLine(violationCount == 0
+                ? "lint: no issues found."
+                : "lint: " + violationCount + " issue(s) found.");
+            return violationCount == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 对单个 SQL 文件执行 Lint，输出违规明细并返回违规数量。
+        /// </summary>
+        static int LintFile(SqlRuleEngine engine, ExemptionProcessor exemption, SqlDialect dialect,
+            SqlFormatStyle style, string path, Encoding encoding, string[] enable, string[] disable)
+        {
+            string sql;
+            try
+            {
+                sql = File.ReadAllText(path, encoding);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error: failed to read " + path + ": " + ex.Message);
+                return 0;
+            }
+
+            // 提取豁免区域，使豁免段内的违规被过滤
+            var (processed, regions) = exemption.PreProcess(sql);
+            var lintRegions = LintRuleCatalog.ToLintRegions(regions, processed);
+            var results = engine.Lint(processed, dialect, style, lintRegions, enable, disable);
+
+            foreach (var r in results)
+            {
+                Console.WriteLine(path + " | " + r.ToDisplayString());
+            }
+            return results.Count;
+        }
+
+        /// <summary>
+        /// 将 SELECT * 展开为完整字段列表。需通过 --metadata(JSON) 或 --db(连接串) 提供表-列映射。
+        /// 展开结果输出到标准输出（可重定向到文件）。
+        /// </summary>
+        static int RunExpand(CliOptions options, SqlFormatStyle style)
+        {
+            IDictionary<string, IList<string>> tableColumns;
+            if (!string.IsNullOrEmpty(options.MetadataPath))
+            {
+                try { tableColumns = MetadataProvider.FromJson(options.MetadataPath!); }
+                catch (Exception ex) { Console.Error.WriteLine("Error: load metadata failed: " + ex.Message); return 4; }
+            }
+            else if (!string.IsNullOrEmpty(options.DbConnection))
+            {
+                try { tableColumns = MetadataProvider.FromDatabase(options.DbConnection!); }
+                catch (Exception ex) { Console.Error.WriteLine("Error: load metadata from DB failed: " + ex.Message); return 4; }
+            }
+            else
+            {
+                Console.Error.WriteLine("Error: --expand requires --metadata <file> or --db <conn>.");
+                return 3;
+            }
+
+            string sql;
+            try { sql = ReadInput(options.FilePath); }
+            catch (Exception ex) { Console.Error.WriteLine("Error: " + ex.Message); return 3; }
+
+            var expander = new StarExpander(new ScriptDomEngine());
+            string expanded = expander.ExpandStar(sql, tableColumns);
+            Console.WriteLine(expanded);
+            return 0;
+        }
+
+        /// <summary>
+        /// 数据库对象批量格式化检查（只读）：读取所有用户可编程对象，格式化后统计会被改写的数量。
+        /// 不执行任何 ALTER，避免破坏性操作；用于 CI 预览差异。
+        /// </summary>
+        static int RunDbCheck(CliOptions options, FormatterPipeline pipeline)
+        {
+            try
+            {
+                var batch = new DbMetadataBatch(pipeline);
+                var objects = batch.GetProgrammableObjects(options.DbConnection!);
+                int wouldChange = 0;
+                foreach (var obj in objects)
+                {
+                    if (string.IsNullOrEmpty(obj.Definition))
+                        continue;
+                    var result = pipeline.Format(obj.Definition!);
+                    if (result.Success && result.FormattedSql != obj.Definition)
+                        wouldChange++;
+                }
+                Console.WriteLine("db-check: " + objects.Count + " object(s), " + wouldChange + " would be reformatted (read-only).");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error: db-check failed: " + ex.Message);
+                return 4;
+            }
+        }
+
+        /// <summary>将逗号/分号分隔的规则列表拆分为数组（去空白、去空项）。</summary>
+        static string[] SplitRules(string? value)
+        {
+            if (value == null)
+                return Array.Empty<string>();
+            return value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => x.Trim())
+                        .Where(x => x.Length > 0)
+                        .ToArray();
+        }
+
+        /// <summary>读取 SQL 输入：优先读取 --file 指定文件，否则从标准输入（管道）读取。</summary>
+        static string ReadInput(string? filePath)
+        {
+            if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                return File.ReadAllText(filePath);
+            if (Console.IsInputRedirected)
+                return Console.In.ReadToEnd();
+            throw new InvalidOperationException("No input: provide --file <path> or pipe SQL via stdin.");
         }
 
         /// <summary>
@@ -412,13 +551,21 @@ namespace SqlFM.Cli
             Console.WriteLine("  -r, --recursive         Recurse into subdirectories (default: true)");
             Console.WriteLine("      --no-recursive      Do not recurse into subdirectories");
             Console.WriteLine("      --check             Check only, do not modify files");
+            Console.WriteLine("      --lint              Run Lint checks (CI: exit 1 if any issue)");
+            Console.WriteLine("      --export <path>     Export current style to a .sqlstyle file");
+            Console.WriteLine("      --import <path>     Import & validate a .sqlstyle file");
+            Console.WriteLine("      --expand            Expand SELECT * using --metadata or --db");
+            Console.WriteLine("      --metadata <path>   Table-column metadata JSON for --expand");
+            Console.WriteLine("      --db <connstr>      SQL Server connection (metadata or db-check)");
+            Console.WriteLine("      --enable-rules <s>  Comma list of rules/groups to enable (--lint)");
+            Console.WriteLine("      --disable-rules <s> Comma list of rules to disable (--lint)");
             Console.WriteLine("      --verbose           Verbose output");
             Console.WriteLine("  -h, --help              Show this help message");
             Console.WriteLine("      --version           Show version number");
             Console.WriteLine();
             Console.WriteLine("Exit codes:");
-            Console.WriteLine("  0  Success, no formatting changes needed");
-            Console.WriteLine("  1  Success, files were formatted (or need formatting in --check mode)");
+            Console.WriteLine("  0  Success, no formatting changes needed / no lint issues");
+            Console.WriteLine("  1  Success, files were formatted (or need formatting in --check mode) / lint issues found");
             Console.WriteLine("  2  Some files failed to format");
             Console.WriteLine("  3  Argument error");
             Console.WriteLine("  4  Fatal error (file not found, invalid style file, etc.)");
@@ -429,6 +576,10 @@ namespace SqlFM.Cli
             Console.WriteLine("  SqlFormatterCli -f ./sql-folder --no-recursive");
             Console.WriteLine("  SqlFormatterCli -f ./sql-folder -o ./formatted -s custom.sqlstyle");
             Console.WriteLine("  SqlFormatterCli -f script.sql -e gbk --verbose");
+            Console.WriteLine("  SqlFormatterCli -f script.sql --lint");
+            Console.WriteLine("  SqlFormatterCli -f script.sql --export my.sqlstyle");
+            Console.WriteLine("  SqlFormatterCli -f query.sql --expand --metadata meta.json");
+            Console.WriteLine("  SqlFormatterCli -f query.sql --lint --disable-rules AM02,ST01");
         }
     }
 }

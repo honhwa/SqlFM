@@ -22,6 +22,22 @@ namespace SqlFM.Cli
         public bool Recursive { get; set; } = true;
         /// <summary>是否仅检查（不修改文件），默认 false</summary>
         public bool CheckOnly { get; set; } = false;
+        /// <summary>是否执行 Lint 检查（替代格式化），默认 false</summary>
+        public bool Lint { get; set; } = false;
+        /// <summary>导出当前样式到指定 .sqlstyle 文件路径</summary>
+        public string? ExportPath { get; set; }
+        /// <summary>从指定 .sqlstyle 文件导入并校验样式</summary>
+        public string? ImportPath { get; set; }
+        /// <summary>是否将 SELECT * 展开为字段列表，默认 false</summary>
+        public bool ExpandStar { get; set; } = false;
+        /// <summary>SELECT * 展开所用的表-列元数据 JSON 文件路径</summary>
+        public string? MetadataPath { get; set; }
+        /// <summary>SQL Server 连接字符串（用于元数据或数据库对象批量格式化检查）</summary>
+        public string? DbConnection { get; set; }
+        /// <summary>仅启用的 Lint 规则/组（逗号分隔），用于 --lint</summary>
+        public string? EnableRules { get; set; }
+        /// <summary>禁用的 Lint 规则（逗号分隔），用于 --lint</summary>
+        public string? DisableRules { get; set; }
         /// <summary>是否输出详细日志，默认 false</summary>
         public bool Verbose { get; set; } = false;
         /// <summary>是否显示帮助信息，默认 false</summary>
@@ -84,6 +100,50 @@ namespace SqlFM.Cli
 
                     case "--check":
                         options.CheckOnly = true;
+                        break;
+
+                    case "--lint":
+                        options.Lint = true;
+                        break;
+
+                    case "--export":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.ExportPath = args[++i];
+                        break;
+
+                    case "--import":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.ImportPath = args[++i];
+                        break;
+
+                    case "--expand":
+                        options.ExpandStar = true;
+                        break;
+
+                    case "--metadata":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.MetadataPath = args[++i];
+                        break;
+
+                    case "--db":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.DbConnection = args[++i];
+                        break;
+
+                    case "--enable-rules":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.EnableRules = args[++i];
+                        break;
+
+                    case "--disable-rules":
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentException($"Option '{arg}' requires a value.");
+                        options.DisableRules = args[++i];
                         break;
 
                     case "--verbose":

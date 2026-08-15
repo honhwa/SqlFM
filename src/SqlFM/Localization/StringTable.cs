@@ -151,6 +151,15 @@ namespace SqlFM.Localization
             ["CmdCaseUpper"] = "关键字大写",
             ["CmdCaseLower"] = "关键字小写",
             ["CmdInsertExemption"] = "插入豁免",
+            ["CmdLint"] = "Lint 检查",
+            ["CmdExpandStar"] = "展开 SELECT *",
+            ["CmdFormatFolder"] = "格式化文件夹",
+            ["LintNone"] = "Lint：未发现问题。",
+            ["LintFound"] = "Lint：发现 {0} 条问题，详见输出窗口。",
+            ["ExpandNoMeta"] = "未选择元数据文件，SELECT * 不会被展开。",
+            ["ExpandLoadFail"] = "元数据加载失败：{0}",
+            ["ExpandNothing"] = "未找到可展开的 SELECT *（请确认元数据包含对应表）。",
+            ["FolderSummary"] = "格式化完成：共 {0} 个文件，已格式化 {1} 个，未变动 {2} 个，失败 {3} 个。",
             ["MenuToolBar"] = "SqlFM 工具",
 
             // ── 消息框 ──
@@ -346,6 +355,15 @@ namespace SqlFM.Localization
             ["CmdCaseUpper"] = "Uppercase Keywords",
             ["CmdCaseLower"] = "Lowercase Keywords",
             ["CmdInsertExemption"] = "Insert Exemption Marker",
+            ["CmdLint"] = "Lint Check",
+            ["CmdExpandStar"] = "Expand SELECT *",
+            ["CmdFormatFolder"] = "Format Folder",
+            ["LintNone"] = "Lint: no issues found.",
+            ["LintFound"] = "Lint: {0} issue(s) found, see Output window.",
+            ["ExpandNoMeta"] = "No metadata file selected; SELECT * will not be expanded.",
+            ["ExpandLoadFail"] = "Failed to load metadata: {0}",
+            ["ExpandNothing"] = "No expandable SELECT * found (ensure metadata contains the referenced tables).",
+            ["FolderSummary"] = "Formatting done: {0} file(s) total, {1} formatted, {2} unchanged, {3} failed.",
             ["MenuToolBar"] = "SqlFM Toolbar",
 
             // ── 消息框 ──
