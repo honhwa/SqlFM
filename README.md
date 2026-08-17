@@ -231,7 +231,7 @@ dotnet build SqlFM.sln --configuration Debug
 
 ## 贡献
 
-欢迎提 Issue 和 PR。
+欢迎提 Issue 和 PR。开发规则约束（代码注释规范、提交信息规范、分支 / PR 约定、架构边界）详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 **报告 Bug** 请包含：SSMS 版本、SqlFM 版本、最小复现 SQL、期望 vs 实际输出。
 
