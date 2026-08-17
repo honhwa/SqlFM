@@ -11,18 +11,6 @@
     <!-- ==================== 菜单定义 ==================== -->
 
     <Menus>
-      <!-- 顶级菜单 "SqlFM"，挂在"工具(T)"菜单下（SSMS 22.6 兼容） -->
-      <Menu guid="guidSqlFMCmdSet"
-            id="TopLevelMenu"
-            priority="0x0100"
-            type="Menu">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
-        <Strings>
-          <ButtonText>SqlFM</ButtonText>
-          <CommandName>SqlFM</CommandName>
-        </Strings>
-      </Menu>
-
       <!-- 工具栏：提供快捷按钮访问（Toolbar 类型无需 Parent） -->
       <Menu guid="guidSqlFMCmdSet"
             id="SqlFMToolbar"
@@ -38,11 +26,11 @@
     <!-- ==================== 菜单组定义 ==================== -->
 
     <Groups>
-      <!-- 主菜单下的命令组 -->
+      <!-- 命令组：直接挂在"工具(T)"顶级菜单下（SSMS 22 兼容——不使用子菜单，避免已知 Bug #11024218） -->
       <Group guid="guidSqlFMCmdSet"
-             id="MenuGroup"
-             priority="0x0100">
-        <Parent guid="guidSqlFMCmdSet" id="TopLevelMenu" />
+             id="ToolsMenuGroup"
+             priority="0x0500">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
       </Group>
 
       <!-- 右键上下文菜单（代码窗口 IDM_VS_CTXT_CODEWIN）中的命令组 -->
@@ -64,15 +52,17 @@
 
     <Buttons>
 
+      <!-- 分隔线 + 标题：SqlFM（在工具菜单中作为视觉分组标题）通过 BeginGroup 实现 -->
+
       <!-- 格式化选中 SQL -->
       <Button guid="guidSqlFMCmdSet"
               id="FormatSelectedCmdId"
               priority="0x0100"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>格式化选中</ButtonText>
+          <ButtonText>SqlFM 格式化选中</ButtonText>
           <CommandName>FormatSelected</CommandName>
         </Strings>
       </Button>
@@ -82,10 +72,10 @@
               id="FormatAllCmdId"
               priority="0x0200"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>格式化全部</ButtonText>
+          <ButtonText>SqlFM 格式化全部</ButtonText>
           <CommandName>FormatAll</CommandName>
         </Strings>
       </Button>
@@ -95,9 +85,9 @@
               id="FormatOptionsCmdId"
               priority="0x0300"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>格式选项</ButtonText>
+          <ButtonText>SqlFM 格式选项</ButtonText>
           <CommandName>FormatOptions</CommandName>
         </Strings>
       </Button>
@@ -107,9 +97,9 @@
               id="CaseUpperCmdId"
               priority="0x0400"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>关键字大写</ButtonText>
+          <ButtonText>SqlFM 关键字大写</ButtonText>
           <CommandName>CaseUpper</CommandName>
         </Strings>
       </Button>
@@ -119,9 +109,9 @@
               id="CaseLowerCmdId"
               priority="0x0500"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>关键字小写</ButtonText>
+          <ButtonText>SqlFM 关键字小写</ButtonText>
           <CommandName>CaseLower</CommandName>
         </Strings>
       </Button>
@@ -131,9 +121,9 @@
               id="InsertExemptionCmdId"
               priority="0x0600"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>插入豁免</ButtonText>
+          <ButtonText>SqlFM 插入豁免标记</ButtonText>
           <CommandName>InsertExemption</CommandName>
         </Strings>
       </Button>
@@ -143,9 +133,9 @@
               id="LintCmdId"
               priority="0x0700"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>Lint 检查</ButtonText>
+          <ButtonText>SqlFM Lint 检查</ButtonText>
           <CommandName>Lint</CommandName>
         </Strings>
       </Button>
@@ -155,9 +145,9 @@
               id="ExpandStarCmdId"
               priority="0x0800"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>展开 SELECT *</ButtonText>
+          <ButtonText>SqlFM 展开 SELECT *</ButtonText>
           <CommandName>ExpandStar</CommandName>
         </Strings>
       </Button>
@@ -167,9 +157,9 @@
               id="FormatFolderCmdId"
               priority="0x0900"
               type="Button">
-        <Parent guid="guidSqlFMCmdSet" id="MenuGroup" />
+        <Parent guid="guidSqlFMCmdSet" id="ToolsMenuGroup" />
         <Strings>
-          <ButtonText>格式化文件夹</ButtonText>
+          <ButtonText>SqlFM 格式化文件夹</ButtonText>
           <CommandName>FormatFolder</CommandName>
         </Strings>
       </Button>
@@ -334,11 +324,10 @@
       <IDSymbol name="FormatFolderCmdId" value="0x0108" />
 
       <!-- 菜单 ID -->
-      <IDSymbol name="TopLevelMenu"  value="0x1001" />
       <IDSymbol name="SqlFMToolbar"  value="0x1002" />
 
       <!-- 组 ID -->
-      <IDSymbol name="MenuGroup"        value="0x1050" />
+      <IDSymbol name="ToolsMenuGroup"   value="0x1050" />
       <IDSymbol name="ContextMenuGroup" value="0x1051" />
       <IDSymbol name="ToolbarGroup"     value="0x1052" />
     </GuidSymbol>
