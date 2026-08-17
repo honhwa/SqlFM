@@ -174,7 +174,15 @@ namespace SqlFM.Setup
                 @"C:\Program Files (x86)\Microsoft SQL Server Management Studio 19"
             });
 
-            var subPaths = new[] { @"Common7\IDE\VSIXInstaller.exe", @"Release\VSIXInstaller.exe", @"IDE\VSIXInstaller.exe" };
+            // 注意顺序：SSMS 21/22 是 VS 2022 shell（x64），VSIXInstaller 位于 Release\Common7\IDE\；
+            // SSMS 18/19/20 是 VS 2019 shell（x86），位于 Common7\IDE\
+            var subPaths = new[]
+            {
+                @"Release\Common7\IDE\VSIXInstaller.exe",
+                @"Common7\IDE\VSIXInstaller.exe",
+                @"Release\VSIXInstaller.exe",
+                @"IDE\VSIXInstaller.exe"
+            };
             foreach (var basePath in candidates)
             {
                 foreach (var sub in subPaths)
@@ -217,10 +225,32 @@ namespace SqlFM.Setup
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                using (var p = Process.Start(psi)) p.WaitForExit();
+                int exit;
+                using (var p = Process.Start(psi))
+                {
+                    p.WaitForExit();
+                    exit = p.ExitCode;
+                }
 
-                // 安装后探测实际扩展目录，记录到注册表以便精准卸载
-                installLocation = FindInstalledExtensionDir();
+                if (exit == 0)
+                {
+                    // 安装后探测实际扩展目录，记录到注册表以便精准卸载
+                    installLocation = FindInstalledExtensionDir();
+                }
+                else
+                {
+                    // VSIXInstaller 返回非 0（常见原因：目标 ID 不匹配 / 先决条件不满足 / SSMS 未安装）
+                    // 不再静默误报成功，而是降级为手动部署；手动也失败才真正报错
+                    if (!InstallViaManualDeploy(tmpVsix, out installLocation))
+                    {
+                        if (!quiet)
+                            Show("VSIXInstaller 返回错误码 " + exit + "，且无法写入用户级扩展目录。\n\n" +
+                                 "请确认已安装 SSMS 22，或手动从 SSMS“扩展”菜单安装 SqlFM.vsix。",
+                                 MB_ICONERROR);
+                        return false;
+                    }
+                    installMethod = "manual";
+                }
             }
             else
             {

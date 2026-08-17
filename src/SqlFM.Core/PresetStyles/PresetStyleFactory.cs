@@ -50,6 +50,7 @@ namespace SqlFM.Core.PresetStyles
                     CommaPosition = CommaPosition.After,
                     AsKeywordMode = AsKeywordMode.Keep,
                     AlignColumnAlias = false,
+                    AlignClauseKeyword = true,   // 子句关键字 SELECT/FROM/WHERE... 末尾字母右对齐
                     WrapLongFunction = true,
                     JoinKeywordNewLine = true,
                     IndentJoinTable = false,
@@ -99,6 +100,7 @@ namespace SqlFM.Core.PresetStyles
             style.IsDefault = false;
 
             style.Dml.AlignColumnAlias = true;
+            style.Dml.AlignClauseKeyword = true;
             style.Dml.AsKeywordMode = AsKeywordMode.Align;
             style.Dml.AlignColumnComments = true;
             style.Dml.AlignCompareOperator = true;

@@ -8,11 +8,17 @@
     <Tags>SQL,T-SQL,Formatter,SSMS,SqlFM</Tags>
   </Metadata>
   <Installation>
-    <InstallationTarget Id="Microsoft.VisualStudio.Ssms" Version="[22.0,)">
+    <!--
+      SSMS 扩展的标准 InstallationTarget Id 为 Microsoft.VisualStudio.Ssms。
+      参考已验证扩展：ssms-object-explorer-menu（SSMS 22.8.1 通过）。
+      版本 [17.0,) 覆盖 SSMS 21/22（底层 VS2022 Shell，版本号 17.x）。
+    -->
+    <InstallationTarget Id="Microsoft.VisualStudio.Ssms" Version="[17.0, )">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
   </Installation>
   <Prerequisites>
+    <!-- SSMS 19-22 基于 VS2022 Shell（CoreEditor 17.0）；放宽到 [17.0,) 匹配目标范围 -->
     <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,)" DisplayName="Visual Studio Core Editor" />
   </Prerequisites>
 
